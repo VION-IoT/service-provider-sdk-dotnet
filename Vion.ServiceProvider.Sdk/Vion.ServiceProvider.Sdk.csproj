@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>netstandard2.1</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
         <LangVersion>latest</LangVersion>
         <ImplicitUsings>false</ImplicitUsings>
         <Nullable>enable</Nullable>
@@ -27,6 +27,11 @@
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Shared.Contracts" Version="25.0.0"/>
+        <PackageReference Include="MQTTnet" Version="5.1.0.1559"/>
     </ItemGroup>
 
 </Project>

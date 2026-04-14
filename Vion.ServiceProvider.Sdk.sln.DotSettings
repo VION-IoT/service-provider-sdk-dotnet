@@ -3,4 +3,5 @@
 	<s:String x:Key="/Default/Environment/InjectedLayers/FileInjectedLayer/=88BEFF0A1D91B2408819708712CD0FB5/RelativePath/@EntryValue">..\Vion.ServiceProvider.Sdk.DotSettings</s:String>
 	<s:Boolean x:Key="/Default/Environment/InjectedLayers/FileInjectedLayer/=88BEFF0A1D91B2408819708712CD0FB5/@KeyIndexDefined">True</s:Boolean>
 	<s:Boolean x:Key="/Default/Environment/InjectedLayers/InjectedLayerCustomization/=File88BEFF0A1D91B2408819708712CD0FB5/@KeyIndexDefined">True</s:Boolean>
-	<s:Double x:Key="/Default/Environment/InjectedLayers/InjectedLayerCustomization/=File88BEFF0A1D91B2408819708712CD0FB5/RelativePriority/@EntryValue">1</s:Double></wpf:ResourceDictionary>
+	<s:Double x:Key="/Default/Environment/InjectedLayers/InjectedLayerCustomization/=File88BEFF0A1D91B2408819708712CD0FB5/RelativePriority/@EntryValue">1</s:Double>
+	<s:Boolean x:Key="/Default/UserDictionary/Words/=Vion/@EntryIndexedValue">True</s:Boolean></wpf:ResourceDictionary>
