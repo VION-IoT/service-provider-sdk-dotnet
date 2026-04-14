@@ -17,19 +17,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <!--shim to be able to use readonly record structs in netstandard2.1-->
-        <PackageReference Include="IsExternalInit" Version="1.0.3">
-            <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-        </PackageReference>
-        <!--shim to be able to use required members in netstandard2.1-->
-        <PackageReference Include="RequiredMemberAttribute" Version="1.0.0">
-            <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-        </PackageReference>
-    </ItemGroup>
-
-    <ItemGroup>
         <PackageReference Include="Shared.Contracts" Version="25.0.0"/>
         <PackageReference Include="MQTTnet" Version="5.1.0.1559"/>
     </ItemGroup>
