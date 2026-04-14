@@ -1,0 +1,68 @@
+# Build and publish Vion.ServiceProvider.Sdk NuGet packages to Azure DevOps Artifacts
+name: Vion ServiceProvider SDK
+run-name: Building Vion ServiceProvider SDK ${{ github.run_number }} from ${{ github.ref_name }}
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'examples/**'
+      - 'templates/**'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - 'examples/**'
+      - 'templates/**'
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: "10.0.x"
+  AZURE_DEVOPS_FEED_URL: "https://pkgs.dev.azure.com/ecocoachsmarthome/Ecocoach/_packaging/ecocoach.csharplogicsystem/nuget/v3/index.json"
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Connect Azure DevOps NuGet feed
+        run: |
+          dotnet nuget add source ${{ env.AZURE_DEVOPS_FEED_URL }} \
+            --name "AzureDevOpsFeed" \
+            --username "AzureDevOps" \
+            --password ${{ secrets.AZURE_DEVOPS_PAT }} \
+            --store-password-in-clear-text
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          ref: ${{ github.event.pull_request.head.ref || '' }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: .NET build solution
+        run: |
+          dotnet build "Vion.ServiceProvider.Sdk.slnx" -c Release
+
+      - name: .NET pack packages in solution
+        run: |
+          dotnet pack "Vion.ServiceProvider.Sdk.slnx" -c Release -o ./packages --no-build
+
+      - name: NuGet push packages to feed
+        if: github.ref == 'refs/heads/main'
+        run: |
+          for package in ./packages/*.nupkg; do
+            echo "Publishing $package"
+            dotnet nuget push "$package" \
+              --source "AzureDevOpsFeed" \
+              --api-key AzureDevOps \
+              --skip-duplicate
+          done
+        shell: bash
+
