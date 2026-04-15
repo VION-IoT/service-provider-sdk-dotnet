@@ -13,8 +13,12 @@
         <Company>Vion-IoT</Company>
         <Description>Sdk for building Vion service providers</Description>
         <IsPackable>true</IsPackable>
-        <Version>0.0.3</Version>
-        <PackageReleaseNotes><![CDATA[0.0.3:
+        <Version>0.0.4</Version>
+        <PackageReleaseNotes>
+            <![CDATA[0.0.4:
+- Adjusted WithHandlers builder method to pass declaration event so the services can be configured accordingly. This change allows service providers to access event details during the configuration phase, enabling more dynamic and context-aware service setups.
+
+0.0.3:
 - Initial release of the Vion Service Provider SDK for .NET. This SDK provides tools and libraries to facilitate the development of service providers that integrate with the Vion IoT platform.]]>
         </PackageReleaseNotes>
     </PropertyGroup>

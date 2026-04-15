@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
@@ -78,6 +78,16 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         public Payloads.ServiceProviderSetupSchemaPayload? SetupSchemaPayload { get; set; }
 
         /// <summary>
+        /// Gets or sets the payload containing the selected service provider setup information.
+        /// </summary>
+        public Payloads.ServiceProviderSetupSelectionPayload? SetupSelectionPayload { get; set; }
+
+        /// <summary>
+        /// Gets or sets the declaration payload for the service provider, which can be used when no setup schema is provided.
+        /// </summary>
+        public ServiceProviderDeclarationPayload? DeclarationPayload { get; set; }
+
+        /// <summary>
         /// Gets or sets the callback for validating the setup selection.
         /// </summary>
         public Func<Payloads.ServiceProviderSetupSelectionPayload, Payloads.ServiceProviderSetupSchemaPayload, bool>? SetupSelectionValidationCallback { get; set; }
@@ -110,7 +120,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <summary>
         /// Gets or sets the callback for setting up message handlers.
         /// </summary>
-        public Func<string, string, HandlerBuilder>? HandlerSetupCallback { get; set; }
+        public Func<string, string, ServiceProviderDeclarationPayload, HandlerBuilder>? HandlerSetupCallback { get; set; }
     }
 
     /// <summary>
@@ -210,17 +220,25 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <summary>
         /// Gets or sets the health check status provider function.
         /// </summary>
-        public Func<HealthStatus>? HealthCheckStatusProviderFunc { get; set; }
+        public Func<HealthStatus>? HealthCheckStatusProviderFunc { get; private set; }
+
+        /// <summary>
+        /// Gets the declaration payload for the service provider, which can be used to access declaration information when
+        /// configuring handlers.
+        /// </summary>
+        public ServiceProviderDeclarationPayload DeclarationPayload { get; }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="HandlerBuilder" /> class.
         /// </summary>
         /// <param name="installationTopic">The installation topic.</param>
         /// <param name="serviceProviderIdentifier">The service provider identifier.</param>
-        public HandlerBuilder(string installationTopic, string serviceProviderIdentifier)
+        /// <param name="declarationPayload"></param>
+        public HandlerBuilder(string installationTopic, string serviceProviderIdentifier, ServiceProviderDeclarationPayload declarationPayload)
         {
             InstallationTopic = installationTopic;
             ServiceProviderIdentifier = serviceProviderIdentifier;
+            DeclarationPayload = declarationPayload;
         }
 
         /// <inheritdoc />
@@ -291,9 +309,9 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <returns>A builder for completing the configuration.</returns>
         public SetupSchemaBuilderFinish WithHandlers(Action<IHandlerBuilder> handlerSetupCallback)
         {
-            _config.HandlerSetupCallback = (installationTopic, serviceProviderIdentifier) =>
+            _config.HandlerSetupCallback = (installationTopic, serviceProviderIdentifier, declarationPayload) =>
                                            {
-                                               var handlerBuilder = new HandlerBuilder(installationTopic, serviceProviderIdentifier);
+                                               var handlerBuilder = new HandlerBuilder(installationTopic, serviceProviderIdentifier, declarationPayload);
                                                handlerSetupCallback(handlerBuilder);
 
                                                foreach (var handlerConfig in handlerBuilder.ConfigHandlers)

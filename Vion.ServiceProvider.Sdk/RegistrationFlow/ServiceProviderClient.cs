@@ -282,7 +282,9 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             }
             else
             {
-                var handlerBuilder = _configuration.HandlerSetupCallback!.Invoke(_operationalData!.InstallationTopic, _operationalData.ConnectionData.ServiceProviderIdentifier);
+                var handlerBuilder = _configuration.HandlerSetupCallback!.Invoke(_operationalData!.InstallationTopic,
+                                                                                 _operationalData.ConnectionData.ServiceProviderIdentifier,
+                                                                                 _configuration.DeclarationPayload!);
                 newHandlers = new ConcurrentBag<HandlerConfiguration>(handlerBuilder.ConfigHandlers);
 
                 _healthStateProviderFunc = handlerBuilder.HealthCheckStatusProviderFunc;
@@ -370,18 +372,17 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         private async Task<ServiceProviderDeclarationPayload> SendOptionalSetupSchemaAsync(CancellationToken cancellationToken)
         {
-            ServiceProviderDeclarationPayload? serviceProviderDeclarationPayload;
             if (_configuration.SetupSchemaPayload != null)
             {
-                var setupSelection = await SendSetupSchemaAsync(cancellationToken);
-                serviceProviderDeclarationPayload = _configuration.DeclarationCallbackWithSetup!.Invoke(setupSelection, _configuration.SetupSchemaPayload!);
+                _configuration.SetupSelectionPayload = await SendSetupSchemaAsync(cancellationToken);
+                _configuration.DeclarationPayload = _configuration.DeclarationCallbackWithSetup!.Invoke(_configuration.SetupSelectionPayload, _configuration.SetupSchemaPayload!);
             }
             else
             {
-                serviceProviderDeclarationPayload = _configuration.DeclarationCallback!.Invoke();
+                _configuration.DeclarationPayload = _configuration.DeclarationCallback!.Invoke();
             }
 
-            return serviceProviderDeclarationPayload;
+            return _configuration.DeclarationPayload;
         }
 
         private async Task ConnectOperationalClientAsync(CancellationToken cancellationToken)
@@ -550,7 +551,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                         return Task.CompletedTask;
                     }
 
-                    if (!_configuration.SetupSelectionValidationCallback(selectionPayload, _configuration.SetupSchemaPayload))
+                    if (!_configuration.SetupSelectionValidationCallback(selectionPayload, _configuration.SetupSchemaPayload!))
                     {
                         _logger.LogWarning("Setup selection validation failed, see logs!");
                         return Task.CompletedTask;
@@ -838,26 +839,6 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                     await client.DisconnectAsync(reasonString: "Registration done or canceled", cancellationToken: CancellationToken.None);
                 }
             }
-        }
-
-        private static string FormatElapsedTime(TimeSpan elapsed)
-        {
-            if (elapsed.TotalDays >= 1)
-            {
-                return $"{elapsed.TotalDays:F1} days";
-            }
-
-            if (elapsed.TotalHours >= 1)
-            {
-                return $"{elapsed.TotalHours:F1} hours";
-            }
-
-            if (elapsed.TotalMinutes >= 1)
-            {
-                return $"{elapsed.TotalMinutes:F0} minutes";
-            }
-
-            return $"{elapsed.TotalSeconds:F0} seconds";
         }
 
         private async Task ConnectRegistrationClientAsync(MqttConnectionData connectionData,
