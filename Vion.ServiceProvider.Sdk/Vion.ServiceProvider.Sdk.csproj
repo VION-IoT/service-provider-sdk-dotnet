@@ -9,7 +9,7 @@
 
         <!-- NuGet package metadata -->
         <PackageId>Vion.ServiceProvider.Sdk</PackageId>
-        <Version>0.0.1</Version>
+        <Version>0.0.2</Version>
         <Authors>Vion-IoT</Authors>
         <Company>Vion-IoT</Company>
         <Description>Sdk for building Vion service providers</Description>
@@ -17,7 +17,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Shared.Contracts" Version="25.0.0"/>
+        <PackageReference Include="Shared.Contracts" Version="26.0.0"/>
         <PackageReference Include="MQTTnet" Version="5.1.0.1559"/>
     </ItemGroup>
 
