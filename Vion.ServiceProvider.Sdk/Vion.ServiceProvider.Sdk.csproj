@@ -9,11 +9,14 @@
 
         <!-- NuGet package metadata -->
         <PackageId>Vion.ServiceProvider.Sdk</PackageId>
-        <Version>0.0.2</Version>
         <Authors>Vion-IoT</Authors>
         <Company>Vion-IoT</Company>
         <Description>Sdk for building Vion service providers</Description>
         <IsPackable>true</IsPackable>
+        <Version>0.0.3</Version>
+        <PackageReleaseNotes><![CDATA[0.0.3:
+- Initial release of the Vion Service Provider SDK for .NET. This SDK provides tools and libraries to facilitate the development of service providers that integrate with the Vion IoT platform.]]>
+        </PackageReleaseNotes>
     </PropertyGroup>
 
     <ItemGroup>
