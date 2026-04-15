@@ -1,0 +1,27 @@
+root = true
+
+# All files
+[*]
+charset = utf-8
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Code files
+[*.{cs,csx,vb,vbx}]
+indent_size = 4
+indent_style = space
+
+# Suppress XML documentation warnings for generated files
+[{**/*.g.cs,**/*.designer.cs,**/obj/**,**/bin/**,ServiceProviderJsonContext.cs}]
+dotnet_diagnostic.CS1591.severity = none
+# ReSharper settings for generated files
+resharper_missing_xml_doc_highlighting = none
+resharper_missing_xml_doc_comment_highlighting = none
+
+# Generated files
+[*.g.cs]
+generated_code = true
+dotnet_diagnostic.CS1591.severity = none
+# ReSharper settings for .g.cs files
+resharper_missing_xml_doc_highlighting = none
+resharper_missing_xml_doc_comment_highlighting = none

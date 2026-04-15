@@ -1,4 +1,6 @@
 ﻿<wpf:ResourceDictionary xml:space="preserve" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:s="clr-namespace:System;assembly=mscorlib" xmlns:ss="urn:shemas-jetbrains-com:settings-storage-xaml" xmlns:wpf="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+	<s:String x:Key="/Default/CodeInspection/GeneratedCode/GeneratedCodeRegions/=_002F_002F_0020_003Cauto_002Dgenerated_002F_003E/@EntryIndexedValue">// &lt;auto-generated/&gt;</s:String>
+	<s:String x:Key="/Default/CodeInspection/GeneratedCode/GeneratedFileMasks/=_002A_002Eg_002Ecs/@EntryIndexedValue">*.g.cs</s:String>
 	<s:String x:Key="/Default/Environment/InjectedLayers/FileInjectedLayer/=88BEFF0A1D91B2408819708712CD0FB5/AbsolutePath/@EntryValue">C:\M\R\service-provider-sdk-dotnet\Vion.ServiceProvider.Sdk.DotSettings</s:String>
 	<s:String x:Key="/Default/Environment/InjectedLayers/FileInjectedLayer/=88BEFF0A1D91B2408819708712CD0FB5/RelativePath/@EntryValue">..\Vion.ServiceProvider.Sdk.DotSettings</s:String>
 	<s:Boolean x:Key="/Default/Environment/InjectedLayers/FileInjectedLayer/=88BEFF0A1D91B2408819708712CD0FB5/@KeyIndexDefined">True</s:Boolean>
