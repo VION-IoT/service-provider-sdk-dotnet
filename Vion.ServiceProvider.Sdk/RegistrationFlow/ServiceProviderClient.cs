@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
@@ -13,9 +13,11 @@ using MQTTnet.Formatter;
 using MQTTnet.Packets;
 using MQTTnet.Protocol;
 using Shared.Contracts.Events.MeshToCloud;
+using Shared.Contracts.Events.MeshToServiceProvider;
 using Shared.Contracts.Events.ServiceProviderToMesh;
 using Shared.Contracts.FlatBuffers.System.Health;
 using Shared.Contracts.Mqtt;
+using Vion.ServiceProvider.Sdk.JsonSerializationContexts;
 using Vion.ServiceProvider.Sdk.RegistrationFlow.Extensions;
 using static Shared.Contracts.Mqtt.MqttUserProperties;
 using ConnectionStatus = Shared.Contracts.Events.MeshToCloud.ConnectionStatus;
@@ -533,7 +535,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 try
                 {
                     var selectionPayload = JsonSerializer.Deserialize(eventArgs.ApplicationMessage.Payload.ToArray(),
-                                                                      JsonSerializationContexts.ServiceProviderJsonContext.Default.ServiceProviderSetupSelectionPayload);
+                                                                      ServiceProviderJsonContext.Default.ServiceProviderSetupSelectionPayload);
 
                     if (selectionPayload == null)
                     {
@@ -569,8 +571,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             try
             {
                 // Serialize setup schema payload once
-                var payload = JsonSerializer.SerializeToUtf8Bytes(_configuration.SetupSchemaPayload,
-                                                                  JsonSerializationContexts.ServiceProviderJsonContext.Default.ServiceProviderSetupSchemaPayload);
+                var payload = JsonSerializer.SerializeToUtf8Bytes(_configuration.SetupSchemaPayload, ServiceProviderJsonContext.Default.ServiceProviderSetupSchemaPayload);
 
                 var msg = new MqttApplicationMessageBuilder().WithTopic(setupSchemaTopic)
                                                              .WithPayload(payload)
@@ -681,7 +682,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                      ],
                                                  };
 
-                var tcs = new TaskCompletionSource<Shared.Contracts.Events.MeshToServiceProvider.ServiceProviderRegistrationAcceptedPayload>();
+                var tcs = new TaskCompletionSource<ServiceProviderRegistrationAcceptedPayload>();
 
                 client.ApplicationMessageReceivedAsync += eventArgs =>
                                                           {
@@ -702,7 +703,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                                   try
                                                                   {
                                                                       var acceptedPayload = JsonSerializer.Deserialize(eventArgs.ApplicationMessage.Payload.ToArray(),
-                                                                                                                       JsonSerializationContexts.ServiceProviderJsonContext.Default
+                                                                                                                       ServiceProviderJsonContext.Default
                                                                                                                            .ServiceProviderRegistrationAcceptedPayload);
 
                                                                       tcs.TrySetResult(acceptedPayload);
@@ -721,16 +722,23 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
                                                               return Task.CompletedTask;
                                                           };
+                var needsPublish = true;
+                var publishCount = 0;
+
                 client.DisconnectedAsync += e =>
                                             {
-                                                _logger.LogWarning("mqtt client in registration disconnected: {ReasonString}(Reason: {Reason})", e.ReasonString, e.Reason);
+                                                _logger
+                                                    .LogWarning("mqtt client in registration disconnected: {ReasonString}(Reason: {Reason}) - will republish retained message on reconnect",
+                                                                e.ReasonString,
+                                                                e.Reason);
+                                                needsPublish = true; // Trigger republish on reconnect since broker might have lost retained message
                                                 return Task.CompletedTask;
                                             };
 
                 // publish registration
                 var topic = $"{Topics.ServiceProviderRegistrationRequest}/{secret}";
                 var payload = JsonSerializer.SerializeToUtf8Bytes(new ServiceProviderRegistrationRequestPayload(connectionData.ServiceProviderIdentifier),
-                                                                  JsonSerializationContexts.ServiceProviderJsonContext.Default.ServiceProviderRegistrationRequestPayload);
+                                                                  ServiceProviderJsonContext.Default.ServiceProviderRegistrationRequestPayload);
                 var msg = new MqttApplicationMessageBuilder().WithTopic(topic)
                                                              .WithPayload(payload)
                                                              .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
@@ -741,81 +749,63 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                              .WithRetainFlag()
                                                              .Build();
 
-                var iterationCount = 0;
-                var initialRetryInterval = TimeSpan.FromSeconds(30);
-                var maxRetryInterval = TimeSpan.FromMinutes(30);
-                var currentRetryInterval = initialRetryInterval;
-
                 _logger.LogWarning(">>> WAITING FOR REGISTRATION ACCEPTANCE - Service provider startup is BLOCKED until registration is accepted on topic: {Topic}",
                                    registrationAcceptedTopic);
 
                 while (!tcs.Task.IsCompleted)
                 {
                     registrationToken.ThrowIfCancellationRequested();
-                    iterationCount++;
 
                     try
                     {
                         if (!client.IsConnected)
                         {
                             await ConnectRegistrationClientAsync(connectionData, registrationOptions, mqttClientSubscribeOptions, client, registrationToken);
+                            needsPublish = true; // Republish after reconnection
                         }
 
-                        await client.PublishAsync(msg, registrationToken);
-
-                        // Log strategy: verbose initially, then reduce frequency
-                        // First 5 iterations: log every time
-                        // Iterations 6-20: log every 5th
-                        // After 20: log every 10th iteration OR every 30 minutes (whichever comes first)
-                        var shouldLog = iterationCount <= 5 || (iterationCount <= 20 && iterationCount % 5 == 0) || (iterationCount > 20 && iterationCount % 10 == 0);
-
-                        if (shouldLog)
+                        if (needsPublish)
                         {
-                            var elapsed = TimeSpan.FromSeconds(30).Multiply(iterationCount - 1) + currentRetryInterval.Multiply(Math.Max(0, iterationCount - 1));
-                            _logger.LogWarning(">>> WAITING FOR REGISTRATION [{Iteration}] - Published registration request (waiting ~{Elapsed}), next retry in {RetryInterval}",
-                                               iterationCount,
-                                               FormatElapsedTime(elapsed),
-                                               currentRetryInterval);
-                        }
+                            publishCount++;
+                            var publishResult = await client.PublishAsync(msg, registrationToken);
 
-                        if (!tcs.Task.IsCompleted)
-                        {
-                            // Wait for either registration response OR retry interval (whichever comes first)
-                            await Task.WhenAny(tcs.Task, Task.Delay(currentRetryInterval, registrationToken));
-
-                            // Only increase backoff if we're still waiting (not if response arrived)
-                            if (!tcs.Task.IsCompleted && currentRetryInterval < maxRetryInterval)
+                            if (publishResult.IsSuccess)
                             {
-                                currentRetryInterval = TimeSpan.FromMilliseconds(Math.Min(currentRetryInterval.TotalMilliseconds * 2, maxRetryInterval.TotalMilliseconds));
+                                needsPublish = false;
+                                _logger.LogWarning(">>> WAITING FOR REGISTRATION [{PublishCount}] - Published retained registration request successfully (ReasonCode: {ReasonCode}), waiting for response...",
+                                                   publishCount,
+                                                   publishResult.ReasonCode);
+                            }
+                            else
+                            {
+                                _logger.LogWarning(">>> WAITING FOR REGISTRATION [{PublishCount}] - Publish failed (ReasonCode: {ReasonCode}, ReasonString: {ReasonString}), will retry",
+                                                   publishCount,
+                                                   publishResult.ReasonCode,
+                                                   publishResult.ReasonString);
                             }
                         }
+
+                        // Wait for either registration response or a short polling interval
+                        await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(1), registrationToken));
                     }
                     catch (OperationCanceledException)
                     {
-                        _logger.LogWarning(">>> REGISTRATION CANCELLED - Loop aborted after {Iterations} iteration(s)", iterationCount);
+                        _logger.LogWarning(">>> REGISTRATION CANCELLED - Loop aborted after {PublishCount} publish(es)", publishCount);
                         throw;
                     }
                     catch (Exception e)
                     {
-                        _logger.LogWarning(e,
-                                           ">>> WAITING FOR REGISTRATION [{Iteration}] - Failed to publish, will retry in {RetryInterval}",
-                                           iterationCount,
-                                           currentRetryInterval);
+                        _logger.LogWarning(e, ">>> WAITING FOR REGISTRATION - Failed to publish or connect, will retry shortly");
+                        needsPublish = true; // Retry publish on next iteration
 
                         try
                         {
-                            // Wait for either registration response OR retry interval (whichever comes first)
-                            await Task.WhenAny(tcs.Task, Task.Delay(currentRetryInterval, registrationToken));
-
-                            // Only increase backoff on error if we're still waiting (not if response arrived)
-                            if (!tcs.Task.IsCompleted && currentRetryInterval < maxRetryInterval)
-                            {
-                                currentRetryInterval = TimeSpan.FromMilliseconds(Math.Min(currentRetryInterval.TotalMilliseconds * 2, maxRetryInterval.TotalMilliseconds));
-                            }
+                            // Short delay before retry on error
+                            await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5), registrationToken));
                         }
                         catch (OperationCanceledException)
                         {
-                            _logger.LogWarning(">>> REGISTRATION CANCELLED during retry delay after {Iterations} iteration(s)", iterationCount);
+                            _logger.LogWarning(">>> REGISTRATION CANCELLED during error retry after {PublishCount} publish(es)", publishCount);
                             throw;
                         }
                     }
@@ -823,7 +813,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
                 var acceptedPayload = await tcs.Task;
 
-                _logger.LogInformation("Registration accepted after {Iterations} iteration(s) - received operational credentials", iterationCount);
+                _logger.LogInformation("Registration accepted after {PublishCount} publish(es) - received operational credentials", publishCount);
                 return new OperationalData(new MqttConnectionData(connectionData.ServiceProviderIdentifier, acceptedPayload.Host, acceptedPayload.Port),
                                            acceptedPayload.InstallationTopic,
                                            acceptedPayload.ClientId,
@@ -878,7 +868,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         private async Task SendDeclarationAsync(OperationalData operationalData, ServiceProviderDeclarationPayload declaration, CancellationToken cancellationToken)
         {
             var installationTopic = operationalData.InstallationTopic;
-            var payload = JsonSerializer.SerializeToUtf8Bytes(declaration, JsonSerializationContexts.ServiceProviderJsonContext.Default.ServiceProviderDeclarationPayload);
+            var payload = JsonSerializer.SerializeToUtf8Bytes(declaration, ServiceProviderJsonContext.Default.ServiceProviderDeclarationPayload);
             var topic = $"{installationTopic}/{operationalData.ConnectionData.ServiceProviderIdentifier}{Topics.ServiceProviderDeclaration}";
             var msg = new MqttApplicationMessageBuilder().WithTopic(topic)
                                                          .WithPayload(payload)
