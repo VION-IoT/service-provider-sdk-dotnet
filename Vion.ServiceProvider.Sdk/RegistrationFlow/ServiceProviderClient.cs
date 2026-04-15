@@ -584,8 +584,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                              .WithRetainFlag()
                                                              .Build();
 
-                var republishInterval = TimeSpan.FromMinutes(1);
-                var iterationCount = 0;
+                var needsPublish = true;
+                var publishCount = 0;
 
                 _logger.LogWarning(">>> WAITING FOR SETUP SELECTION - Service provider startup is BLOCKED until selection is received on topic: {Topic}", setupSelectionTopic);
 
@@ -595,46 +595,57 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 while (!tcs.Task.IsCompleted)
                 {
                     loopCancellationToken.ThrowIfCancellationRequested();
-                    iterationCount++;
 
                     try
                     {
-                        await _operationalClient.PublishAsync(msg, loopCancellationToken);
-                        _logger.LogWarning(">>> WAITING FOR SETUP SELECTION [{Iteration}] - Published setup schema on {Topic}, waiting for selection response...",
-                                           iterationCount,
-                                           setupSchemaTopic);
-
-                        if (!tcs.Task.IsCompleted)
+                        if (needsPublish)
                         {
-                            // Wait for either selection response or republish interval
-                            await Task.WhenAny(tcs.Task, Task.Delay(republishInterval, loopCancellationToken));
+                            publishCount++;
+                            var publishResult = await _operationalClient.PublishAsync(msg, loopCancellationToken);
+
+                            if (publishResult.IsSuccess)
+                            {
+                                needsPublish = false;
+                                _logger.LogWarning(">>> WAITING FOR SETUP SELECTION [{PublishCount}] - Published retained setup schema successfully (ReasonCode: {ReasonCode}), waiting for selection response...",
+                                                   publishCount,
+                                                   publishResult.ReasonCode);
+                            }
+                            else
+                            {
+                                _logger.LogWarning(">>> WAITING FOR SETUP SELECTION [{PublishCount}] - Publish failed (ReasonCode: {ReasonCode}, ReasonString: {ReasonString}), will retry",
+                                                   publishCount,
+                                                   publishResult.ReasonCode,
+                                                   publishResult.ReasonString);
+                            }
                         }
+
+                        // Wait for either selection response or a short polling interval
+                        await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(1), loopCancellationToken));
                     }
                     catch (OperationCanceledException)
                     {
-                        _logger.LogWarning(">>> SETUP SELECTION CANCELLED - Loop aborted due to disconnection or app shutdown after {Iterations} iteration(s)", iterationCount);
+                        _logger.LogWarning(">>> SETUP SELECTION CANCELLED - Loop aborted after {PublishCount} publish(es)", publishCount);
                         throw;
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(ex,
-                                           ">>> WAITING FOR SETUP SELECTION [{Iteration}] - Failed to publish setup schema, will retry in {Interval}",
-                                           iterationCount,
-                                           republishInterval);
+                        _logger.LogWarning(ex, ">>> WAITING FOR SETUP SELECTION - Failed to publish, will retry shortly");
+                        needsPublish = true; // Retry publish on next iteration
 
                         try
                         {
-                            await Task.Delay(republishInterval, loopCancellationToken);
+                            // Short delay before retry on error
+                            await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5), loopCancellationToken));
                         }
                         catch (OperationCanceledException)
                         {
-                            _logger.LogWarning(">>> SETUP SELECTION CANCELLED - Loop aborted during retry delay after {Iterations} iteration(s)", iterationCount);
+                            _logger.LogWarning(">>> SETUP SELECTION CANCELLED during error retry after {PublishCount} publish(es)", publishCount);
                             throw;
                         }
                     }
                 }
 
-                _logger.LogInformation("Setup selection received after {Iterations} iteration(s)", iterationCount);
+                _logger.LogInformation("Setup selection received after {PublishCount} publish(es)", publishCount);
                 return await tcs.Task;
             }
             finally
