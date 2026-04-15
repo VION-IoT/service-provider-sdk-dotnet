@@ -13,9 +13,11 @@
         <Company>Vion-IoT</Company>
         <Description>Sdk for building Vion service providers</Description>
         <IsPackable>true</IsPackable>
-        <Version>0.0.4</Version>
-        <PackageReleaseNotes>
-            <![CDATA[0.0.4:
+        <Version>0.0.5</Version>
+        <PackageReleaseNotes><![CDATA[0.0.5:
+- Updated IHandlerBuilder interface to include the DeclarationEvent.
+
+0.0.4:
 - Adjusted WithHandlers builder method to pass declaration event so the services can be configured accordingly. This change allows service providers to access event details during the configuration phase, enabling more dynamic and context-aware service setups.
 
 0.0.3:

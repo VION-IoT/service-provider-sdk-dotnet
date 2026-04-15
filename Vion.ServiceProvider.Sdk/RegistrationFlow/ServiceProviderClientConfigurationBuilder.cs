@@ -183,6 +183,12 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         string ServiceProviderIdentifier { get; }
 
         /// <summary>
+        /// Gets the declaration payload for the service provider, which can be used to access declaration information when
+        /// configuring handlers.
+        /// </summary>
+        ServiceProviderDeclarationPayload DeclarationPayload { get; }
+
+        /// <summary>
         /// Adds a handler for a specific topic.
         /// </summary>
         /// <param name="topic">The topic to handle (no wildcards allowed).</param>
@@ -223,12 +229,6 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         public Func<HealthStatus>? HealthCheckStatusProviderFunc { get; private set; }
 
         /// <summary>
-        /// Gets the declaration payload for the service provider, which can be used to access declaration information when
-        /// configuring handlers.
-        /// </summary>
-        public ServiceProviderDeclarationPayload DeclarationPayload { get; }
-
-        /// <summary>
         /// Initializes a new instance of the <see cref="HandlerBuilder" /> class.
         /// </summary>
         /// <param name="installationTopic">The installation topic.</param>
@@ -240,6 +240,12 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             ServiceProviderIdentifier = serviceProviderIdentifier;
             DeclarationPayload = declarationPayload;
         }
+
+        /// <summary>
+        /// Gets the declaration payload for the service provider, which can be used to access declaration information when
+        /// configuring handlers.
+        /// </summary>
+        public ServiceProviderDeclarationPayload DeclarationPayload { get; }
 
         /// <inheritdoc />
         public string InstallationTopic { get; }
