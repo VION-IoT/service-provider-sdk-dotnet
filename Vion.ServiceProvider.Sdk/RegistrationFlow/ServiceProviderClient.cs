@@ -521,11 +521,16 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                         return Task.CompletedTask;
                     }
 
-                    // Validate selection if callback is configured
-                    if (_configuration.SetupSelectionValidationCallback != null &&
-                        !_configuration.SetupSelectionValidationCallback(selectionPayload, _configuration.SetupSchemaPayload))
+                    // Validate selection
+                    if (_configuration.SetupSelectionValidationCallback == null)
                     {
-                        _logger.LogWarning("Setup selection validation failed");
+                        _logger.LogError("Setup selection validation callback is not configured");
+                        return Task.CompletedTask;
+                    }
+
+                    if (!_configuration.SetupSelectionValidationCallback(selectionPayload, _configuration.SetupSchemaPayload))
+                    {
+                        _logger.LogWarning("Setup selection validation failed, see logs!");
                         return Task.CompletedTask;
                     }
 
