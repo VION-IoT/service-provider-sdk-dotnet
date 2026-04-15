@@ -352,7 +352,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             if (_configuration.SetupSchemaPayload != null)
             {
                 var setupSelection = await SendSetupSchemaAsync(cancellationToken);
-                serviceProviderDeclarationPayload = _configuration.DeclarationCallbackWithSetup!.Invoke(setupSelection);
+                serviceProviderDeclarationPayload = _configuration.DeclarationCallbackWithSetup!.Invoke(setupSelection, _configuration.SetupSchemaPayload!);
             }
             else
             {
@@ -522,7 +522,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                     }
 
                     // Validate selection if callback is configured
-                    if (_configuration.SetupSelectionValidationCallback != null && !_configuration.SetupSelectionValidationCallback(selectionPayload))
+                    if (_configuration.SetupSelectionValidationCallback != null &&
+                        !_configuration.SetupSelectionValidationCallback(selectionPayload, _configuration.SetupSchemaPayload))
                     {
                         _logger.LogWarning("Setup selection validation failed");
                         return Task.CompletedTask;
@@ -856,7 +857,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             var topic = $"{installationTopic}/{operationalData.ConnectionData.ServiceProviderIdentifier}{Topics.ServiceProviderDeclaration}";
             var msg = new MqttApplicationMessageBuilder().WithTopic(topic)
                                                          .WithPayload(payload)
-                                                         .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce) // todo check correct usage of qos level
+                                                         .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
                                                          .WithContentType(MessageMimeTypes.Json)
                                                          .WithCorrelationData(Guid.NewGuid().ToByteArray())
                                                          .WithUserProperty(PublishedAt.Name, Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format)))

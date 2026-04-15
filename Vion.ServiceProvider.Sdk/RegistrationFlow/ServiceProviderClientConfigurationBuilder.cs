@@ -31,7 +31,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="validationCallback">The setup selection validation func.</param>
         /// <returns>A builder for further builder.</returns>
         public SetupSelectionBuilder WithSetupSchema(Payloads.ServiceProviderSetupSchemaPayload setupSchemaPayload,
-                                                     Func<Payloads.ServiceProviderSetupSelectionPayload, bool> validationCallback)
+                                                     Func<Payloads.ServiceProviderSetupSelectionPayload, Payloads.ServiceProviderSetupSchemaPayload, bool> validationCallback)
         {
             Configuration.SetupSelectionValidationCallback = validationCallback;
             Configuration.SetupSchemaPayload = setupSchemaPayload;
@@ -49,9 +49,14 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
     {
         public Payloads.ServiceProviderSetupSchemaPayload? SetupSchemaPayload { get; set; }
 
-        public Func<Payloads.ServiceProviderSetupSelectionPayload, bool>? SetupSelectionValidationCallback { get; set; }
+        public Func<Payloads.ServiceProviderSetupSelectionPayload, Payloads.ServiceProviderSetupSchemaPayload, bool>? SetupSelectionValidationCallback { get; set; }
 
-        public Func<Payloads.ServiceProviderSetupSelectionPayload, ServiceProviderDeclarationPayload>? DeclarationCallbackWithSetup { get; set; }
+        public Func<Payloads.ServiceProviderSetupSelectionPayload, Payloads.ServiceProviderSetupSchemaPayload, ServiceProviderDeclarationPayload>? DeclarationCallbackWithSetup
+        {
+            get;
+
+            set;
+        }
 
         public Func<ServiceProviderDeclarationPayload>? DeclarationCallback { get; set; }
 
@@ -76,7 +81,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// </summary>
         /// <param name="declarationCallback">The declaration callback based on setup selection.</param>
         /// <returns>A builder for further configuration.</returns>
-        public SetupSchemaBuilderHandlerRegistration WithDeclaration(Func<Payloads.ServiceProviderSetupSelectionPayload, ServiceProviderDeclarationPayload> declarationCallback)
+        public SetupSchemaBuilderHandlerRegistration WithDeclaration(
+            Func<Payloads.ServiceProviderSetupSelectionPayload, Payloads.ServiceProviderSetupSchemaPayload, ServiceProviderDeclarationPayload> declarationCallback)
         {
             _config.DeclarationCallbackWithSetup = declarationCallback;
             return new SetupSchemaBuilderHandlerRegistration(_config);
