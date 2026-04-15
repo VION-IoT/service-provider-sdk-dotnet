@@ -9,16 +9,33 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 {
     #region data classes
 
+    /// <summary>
+    /// Represents operational data for the service provider including connection and authentication details.
+    /// </summary>
     public record OperationalData(MqttConnectionData ConnectionData, string InstallationTopic, string ClientId, string Username, string Password);
 
+    /// <summary>
+    /// Represents MQTT connection data including service provider identifier and broker address.
+    /// </summary>
     public record MqttConnectionData(string ServiceProviderIdentifier, string Host, int Port);
 
     #endregion data classes
 
+    /// <summary>
+    /// Builder class for constructing service provider client configuration.
+    /// </summary>
     public class ServiceProviderClientConfigurationBuilder
     {
+        /// <summary>
+        /// Gets the configuration being built.
+        /// </summary>
         public ServiceProviderClientConfiguration Configuration { get; }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ServiceProviderClientConfigurationBuilder" /> class.
+        /// </summary>
+        /// <param name="connectionData">The MQTT connection data.</param>
+        /// <param name="secret">The secret for authentication.</param>
         public ServiceProviderClientConfigurationBuilder(MqttConnectionData connectionData, string secret)
         {
             Configuration = new ServiceProviderClientConfiguration { ConnectionData = connectionData, Secret = secret };
@@ -38,6 +55,11 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             return new SetupSelectionBuilder(Configuration);
         }
 
+        /// <summary>
+        /// Sets the declaration callback for the service provider.
+        /// </summary>
+        /// <param name="declarationCallback">The callback function that provides the service provider declaration.</param>
+        /// <returns>A builder for handler registration.</returns>
         public SetupSchemaBuilderHandlerRegistration WithDeclaration(Func<ServiceProviderDeclarationPayload> declarationCallback)
         {
             Configuration.DeclarationCallback = declarationCallback;
@@ -45,12 +67,24 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         }
     }
 
+    /// <summary>
+    /// Configuration settings for the service provider client.
+    /// </summary>
     public class ServiceProviderClientConfiguration
     {
+        /// <summary>
+        /// Gets or sets the setup schema payload defining the configuration fields.
+        /// </summary>
         public Payloads.ServiceProviderSetupSchemaPayload? SetupSchemaPayload { get; set; }
 
+        /// <summary>
+        /// Gets or sets the callback for validating the setup selection.
+        /// </summary>
         public Func<Payloads.ServiceProviderSetupSelectionPayload, Payloads.ServiceProviderSetupSchemaPayload, bool>? SetupSelectionValidationCallback { get; set; }
 
+        /// <summary>
+        /// Gets or sets the callback for building the declaration based on setup selection.
+        /// </summary>
         public Func<Payloads.ServiceProviderSetupSelectionPayload, Payloads.ServiceProviderSetupSchemaPayload, ServiceProviderDeclarationPayload>? DeclarationCallbackWithSetup
         {
             get;
@@ -58,19 +92,38 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             set;
         }
 
+        /// <summary>
+        /// Gets or sets the callback for building the declaration without setup.
+        /// </summary>
         public Func<ServiceProviderDeclarationPayload>? DeclarationCallback { get; set; }
 
+        /// <summary>
+        /// Gets or initializes the MQTT connection data.
+        /// </summary>
         public required MqttConnectionData ConnectionData { get; init; }
 
+        /// <summary>
+        /// Gets or initializes the authentication secret.
+        /// </summary>
         public required string Secret { get; init; }
 
+        /// <summary>
+        /// Gets or sets the callback for setting up message handlers.
+        /// </summary>
         public Func<string, string, HandlerBuilder>? HandlerSetupCallback { get; set; }
     }
 
+    /// <summary>
+    /// Builder class for configuring setup selection declaration.
+    /// </summary>
     public class SetupSelectionBuilder
     {
         private readonly ServiceProviderClientConfiguration _config;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="SetupSelectionBuilder" /> class.
+        /// </summary>
+        /// <param name="config">The configuration being built.</param>
         public SetupSelectionBuilder(ServiceProviderClientConfiguration config)
         {
             _config = config;
@@ -89,21 +142,41 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         }
     }
 
+    /// <summary>
+    /// Configuration for a message handler including topic matching and handler function.
+    /// </summary>
     public record HandlerConfiguration(
         string TopicPartToMatch,
         Func<IServiceProviderClientHandler, MqttApplicationMessageReceivedEventArgs, Task> Handler,
         bool IsContractTopic,
         string? TopicFilter = null)
     {
+        /// <summary>
+        /// Gets or sets the MQTT topic filter for subscription.
+        /// </summary>
         public string? TopicFilter { get; set; } = TopicFilter;
     }
 
+    /// <summary>
+    /// Interface for building and configuring message handlers for the service provider.
+    /// </summary>
     public interface IHandlerBuilder
     {
+        /// <summary>
+        /// Gets the installation topic for this handler.
+        /// </summary>
         string InstallationTopic { get; }
 
+        /// <summary>
+        /// Gets the service provider identifier.
+        /// </summary>
         string ServiceProviderIdentifier { get; }
 
+        /// <summary>
+        /// Adds a handler for a specific topic.
+        /// </summary>
+        /// <param name="topic">The topic to handle (no wildcards allowed).</param>
+        /// <param name="handler">The handler function to process messages.</param>
         void WithHandler(string topic, Func<IServiceProviderClientHandler, MqttApplicationMessageReceivedEventArgs, Task> handler);
 
         /// <summary>
@@ -117,25 +190,46 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         // {installationTopic}/{serviceProviderIdentifier}/{service}/{contract}/{contract-specific-path}
         void WithContractHandler(string service, string contract, Func<IServiceProviderClientHandler, MqttApplicationMessageReceivedEventArgs, Task> handler);
 
+        /// <summary>
+        /// Sets the health check evaluator function for monitoring service health.
+        /// </summary>
+        /// <param name="healthCheckEvaluator">The function that evaluates and returns the current health status.</param>
         void WithHealthCheckEvaluator(Func<HealthStatus> healthCheckEvaluator);
     }
 
+    /// <summary>
+    /// Implementation of <see cref="IHandlerBuilder" /> for building message handlers.
+    /// </summary>
     public class HandlerBuilder : IHandlerBuilder
     {
+        /// <summary>
+        /// Gets the list of configured handlers.
+        /// </summary>
         public List<HandlerConfiguration> ConfigHandlers { get; } = [];
 
+        /// <summary>
+        /// Gets or sets the health check status provider function.
+        /// </summary>
         public Func<HealthStatus>? HealthCheckStatusProviderFunc { get; set; }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="HandlerBuilder" /> class.
+        /// </summary>
+        /// <param name="installationTopic">The installation topic.</param>
+        /// <param name="serviceProviderIdentifier">The service provider identifier.</param>
         public HandlerBuilder(string installationTopic, string serviceProviderIdentifier)
         {
             InstallationTopic = installationTopic;
             ServiceProviderIdentifier = serviceProviderIdentifier;
         }
 
+        /// <inheritdoc />
         public string InstallationTopic { get; }
 
+        /// <inheritdoc />
         public string ServiceProviderIdentifier { get; }
 
+        /// <inheritdoc />
         public void WithHandler(string topic, Func<IServiceProviderClientHandler, MqttApplicationMessageReceivedEventArgs, Task> handler)
         {
             if (topic.Contains("+") || topic.Contains("#"))
@@ -163,21 +257,38 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             ConfigHandlers.Add(new HandlerConfiguration(topicPartToMatch, handler, true));
         }
 
+        /// <summary>
+        /// This allows to set a health check evaluator function that can be used to monitor the health status of the service
+        /// provider. The function should return a HealthStatus indicating the current health state.
+        /// </summary>
+        /// <param name="healthCheckEvaluator">The function to evaluate the health status.</param>
         public void WithHealthCheckEvaluator(Func<HealthStatus> healthCheckEvaluator)
         {
             HealthCheckStatusProviderFunc = healthCheckEvaluator;
         }
     }
 
+    /// <summary>
+    /// Builder class for registering message handlers after setup schema or declaration configuration.
+    /// </summary>
     public class SetupSchemaBuilderHandlerRegistration
     {
         private readonly ServiceProviderClientConfiguration _config;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="SetupSchemaBuilderHandlerRegistration" /> class.
+        /// </summary>
+        /// <param name="config">The configuration being built.</param>
         public SetupSchemaBuilderHandlerRegistration(ServiceProviderClientConfiguration config)
         {
             _config = config;
         }
 
+        /// <summary>
+        /// Configures the message handlers for the service provider.
+        /// </summary>
+        /// <param name="handlerSetupCallback">The callback action to configure handlers.</param>
+        /// <returns>A builder for completing the configuration.</returns>
         public SetupSchemaBuilderFinish WithHandlers(Action<IHandlerBuilder> handlerSetupCallback)
         {
             _config.HandlerSetupCallback = (installationTopic, serviceProviderIdentifier) =>
@@ -205,15 +316,26 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         }
     }
 
+    /// <summary>
+    /// Final builder class for completing the service provider client configuration.
+    /// </summary>
     public class SetupSchemaBuilderFinish
     {
         private readonly ServiceProviderClientConfiguration _config;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="SetupSchemaBuilderFinish" /> class.
+        /// </summary>
+        /// <param name="config">The configuration being built.</param>
         public SetupSchemaBuilderFinish(ServiceProviderClientConfiguration config)
         {
             _config = config;
         }
 
+        /// <summary>
+        /// Builds and returns the completed service provider client configuration.
+        /// </summary>
+        /// <returns>The configured <see cref="ServiceProviderClientConfiguration" />.</returns>
         public ServiceProviderClientConfiguration Build()
         {
             return _config;

@@ -23,6 +23,9 @@ using HealthStatus = Shared.Contracts.Events.MeshToCloud.HealthStatus;
 
 namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 {
+    /// <summary>
+    /// Implementation of the service provider client that handles MQTT communication, registration, and message publishing.
+    /// </summary>
     public class ServiceProviderClient : IServiceProviderClient, IServiceProviderClientHandler, IAsyncDisposable
     {
         private readonly ServiceProviderClientConfiguration _configuration;
@@ -57,6 +60,12 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         private volatile string? _topicComponentHealthState;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ServiceProviderClient" /> class.
+        /// </summary>
+        /// <param name="configuration">The service provider client configuration.</param>
+        /// <param name="mqttClientFactory">The factory for creating MQTT clients.</param>
+        /// <param name="logger">The logger instance.</param>
         public ServiceProviderClient(ServiceProviderClientConfiguration configuration, MqttClientFactory mqttClientFactory, ILogger logger)
         {
             _mqttClientFactory = mqttClientFactory;
@@ -159,16 +168,15 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             return PublishAsync(msg, cancellationToken);
         }
 
-        public async Task PublishAsync(MqttApplicationMessage msg, CancellationToken cancellationToken)
+        /// <summary>
+        /// Publishes an MQTT application message to the operational MQTT broker.
+        /// </summary>
+        /// <param name="msg">The MQTT application message to publish.</param>
+        /// <param name="cancellationToken">The cancellation token for the operation.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+        public Task PublishAsync(MqttApplicationMessage msg, CancellationToken cancellationToken)
         {
-            try
-            {
-                await _operationalClient.PublishAsync(msg, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed publishing {Topic}", msg.Topic);
-            }
+            return _operationalClient.PublishAsync(msg, cancellationToken);
         }
 
         /// <inheritdoc />
@@ -183,6 +191,18 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             get => _operationalData?.ConnectionData.ServiceProviderIdentifier;
         }
 
+        /// <summary>
+        /// Publishes the health status of the service provider to the specified MQTT topic.
+        /// </summary>
+        /// <param name="topic">The MQTT topic to publish to.</param>
+        /// <param name="connectionStatus">The connection status of the service provider.</param>
+        /// <param name="healthStatus">The health status of the service provider.</param>
+        /// <param name="since">The timestamp since when this status has been active.</param>
+        /// <param name="client">The service provider client handler.</param>
+        /// <param name="correlationData">Optional correlation data for the message.</param>
+        /// <param name="retain">Whether the message should be retained by the broker.</param>
+        /// <param name="cancellationToken">Cancellation token for the operation.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
         public async Task PublishHealthStatusAsync(string topic,
                                                    ConnectionStatus connectionStatus,
                                                    HealthStatus healthStatus,
