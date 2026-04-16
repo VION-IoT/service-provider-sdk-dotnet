@@ -291,7 +291,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 _healthStateProviderFunc = handlerBuilder.HealthCheckStatusProviderFunc;
             }
 
-            var topicGetComponentHealth = $"{_operationalData!.InstallationTopic}/{_operationalData.ConnectionData.ServiceProviderIdentifier}{Topics.ComponentHealthGet}";
+            var topicGetComponentHealth = $"{_operationalData!.InstallationTopic}{_operationalData.ConnectionData.ServiceProviderIdentifier}{Topics.ComponentHealthGet}";
             RegisterHandler(topicGetComponentHealth,
                             async (client, eventArgs) =>
                             {
@@ -340,10 +340,10 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         {
             var topics = handlers.Select(h => h.TopicFilter).ToHashSet();
             _currentClientSubscriptionOptions = new MqttClientSubscribeOptions { TopicFilters = topics.Select(t => new MqttTopicFilterBuilder().WithTopic(t).Build()).ToList() };
-            var x = await _operationalClient.SubscribeAsync(_currentClientSubscriptionOptions, cancellationToken);
-            _logger.LogInformation("Subscribed for operational client:{Reason} ({Items})",
-                                   x.ReasonString,
-                                   string.Join(", ", x.Items.Select(i => $"{i.TopicFilter.Topic}: {i.ResultCode}")));
+            var subscribeResult = await _operationalClient.SubscribeAsync(_currentClientSubscriptionOptions, cancellationToken);
+            _logger.LogInformation("Subscribed for operational client:{Reason} (\n    {Items})",
+                                   subscribeResult.ReasonString,
+                                   string.Join(",\n    ", subscribeResult.Items.Select(i => $"{i.TopicFilter.Topic}: {i.ResultCode}")));
         }
 
         private async Task OnAppStoppingAsync()
@@ -397,7 +397,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                                .WithCredentials(_operationalData!.Username, _operationalData!.Password);
 
             // last will
-            _topicComponentHealthState = $"{_operationalData.InstallationTopic}/{serviceProviderIdentifier}{Topics.ComponentHealthState}";
+            _topicComponentHealthState = $"{_operationalData.InstallationTopic}{serviceProviderIdentifier}{Topics.ComponentHealthState}";
             optionsBuilder.WithWillTopic(_topicComponentHealthState)
                           .WithWillCorrelationData(Guid.NewGuid().ToByteArray())
                           .WithWillContentType(MessageMimeTypes.FlatBuffer)
@@ -497,9 +497,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             var installationTopic = _operationalData.InstallationTopic;
 
             // Build topics for setup schema request/response
-            var setupSchemaTopic = $"{installationTopic}/{serviceProviderIdentifier}/serviceProvider/setup/schema";
-            var setupSelectionTopic = $"{installationTopic}/{serviceProviderIdentifier}/serviceProvider/setup/selection";
-
+            var setupSchemaTopic = ServiceProviderTopics.GetSetupSchemaTopic(installationTopic, serviceProviderIdentifier);
+            var setupSelectionTopic = ServiceProviderTopics.GetSelectionTopic(installationTopic, serviceProviderIdentifier);
             var tcs = new TaskCompletionSource<Payloads.ServiceProviderSetupSelectionPayload>();
             var correlationData = Guid.NewGuid().ToByteArray();
 
@@ -674,8 +673,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             using var client = _mqttClientFactory.CreateMqttClient();
             try
             {
-                var registrationAcceptedTopic = $"{Topics.ServiceProviderRegistrationAccepted}/{secret}";
-                var registrationDeniedTopic = $"{Topics.ServiceProviderRegistrationDenied}/{secret}";
+                var registrationAcceptedTopic = ServiceProviderTopics.GetRegistrationAcceptedTopic(secret);
+                var registrationDeniedTopic = ServiceProviderTopics.GetRegistrationDeniedTopic(secret);
 
                 var registrationOptions = new MqttClientOptionsBuilder().WithClientId(connectionData.ServiceProviderIdentifier)
                                                                         .WithProtocolVersion(MqttProtocolVersion.V500)
@@ -719,6 +718,12 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                                                                                        ServiceProviderJsonContext.Default
                                                                                                                            .ServiceProviderRegistrationAcceptedPayload);
 
+                                                                      _logger
+                                                                          .LogInformation("Registration accepted! InstallationTopic: {InstallationTopic}, ClientId: {ClientId}, Host: {Host}, Username: {Username}",
+                                                                                          acceptedPayload.InstallationTopic,
+                                                                                          acceptedPayload.ClientId,
+                                                                                          acceptedPayload.Host,
+                                                                                          acceptedPayload.Username);
                                                                       tcs.TrySetResult(acceptedPayload);
                                                                   }
                                                                   catch (Exception ex)
@@ -852,10 +857,10 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             var result = await client.ConnectAsync(registrationOptions, ct);
             _logger.LogInformation("Connected for registration:{Reason} ({ResultCode})", result.ReasonString, result.ResultCode);
 
-            var x = await client.SubscribeAsync(mqttClientSubscribeOptions, ct);
-            _logger.LogInformation("Subscribed for registration:{Reason} ({Items})",
-                                   x.ReasonString,
-                                   string.Join(", ", x.Items.Select(i => $"{i.TopicFilter.Topic}: {i.ResultCode}")));
+            var subscribeResult = await client.SubscribeAsync(mqttClientSubscribeOptions, ct);
+            _logger.LogInformation("Subscribed for registration:{Reason} (\n    {Items})",
+                                   subscribeResult.ReasonString,
+                                   string.Join(",\n    ", subscribeResult.Items.Select(i => $"{i.TopicFilter.Topic}: {i.ResultCode}")));
         }
 
         private async Task SendDeclarationAsync(OperationalData operationalData, ServiceProviderDeclarationPayload declaration, CancellationToken cancellationToken)

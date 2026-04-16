@@ -13,9 +13,13 @@
         <Company>Vion-IoT</Company>
         <Description>Sdk for building Vion service providers</Description>
         <IsPackable>true</IsPackable>
-        <Version>0.0.6</Version>
+        <Version>0.0.7</Version>
         <PackageReleaseNotes>
-            <![CDATA[0.0.6:
+            <![CDATA[0.0.7:
+- Removed excess '/' in topics because InstallationTopic has a trailing '/' and this caused double '//' in the topics.
+- Introduced ServiceProviderTopics class to centralize topic definitions and ensure consistency across the SDK. This change simplifies topic management and reduces the risk of errors due to typos or inconsistencies in topic strings.
+
+0.0.6:
 - Updated PublishAsync methods in IServiceProviderPublish and ServiceProviderClient to return Task<MqttClientPublishResult> for improved error handling and detailed publish results. Also updated PublishHealthStatusAsync to return publish results and handle exceptions by returning an error result.
 
 0.0.5:

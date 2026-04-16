@@ -231,7 +231,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <summary>
         /// Initializes a new instance of the <see cref="HandlerBuilder" /> class.
         /// </summary>
-        /// <param name="installationTopic">The installation topic.</param>
+        /// <param name="installationTopic">The installation topic.(ends with '/')</param>
         /// <param name="serviceProviderIdentifier">The service provider identifier.</param>
         /// <param name="declarationPayload"></param>
         public HandlerBuilder(string installationTopic, string serviceProviderIdentifier, ServiceProviderDeclarationPayload declarationPayload)
@@ -324,7 +324,9 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                {
                                                    if (handlerConfig.IsContractTopic)
                                                    {
-                                                       var topicFilter = $"{installationTopic}/{serviceProviderIdentifier}/{handlerConfig.TopicPartToMatch}/#";
+                                                       var topicFilter = ServiceProviderTopics.GetContractTopicFilter(installationTopic,
+                                                                                                                      serviceProviderIdentifier,
+                                                                                                                      handlerConfig.TopicPartToMatch);
                                                        handlerConfig.TopicFilter = topicFilter;
                                                    }
                                                    else

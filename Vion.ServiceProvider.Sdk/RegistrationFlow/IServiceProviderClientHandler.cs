@@ -1,4 +1,4 @@
-﻿namespace Vion.ServiceProvider.Sdk.RegistrationFlow
+namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 {
     /// <summary>
     /// Defines the contract for a service provider client handler with installation topic and identifier.
@@ -6,7 +6,7 @@
     public interface IServiceProviderClientHandler : IServiceProviderPublish
     {
         /// <summary>
-        /// Gets the installation topic for this service provider.
+        /// Gets the installation topic for this service provider (ends with '/').
         /// </summary>
         public string? InstallationTopic { get; }
 
