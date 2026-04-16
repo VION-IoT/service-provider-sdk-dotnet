@@ -155,7 +155,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         }
 
         /// <inheritdoc />
-        public Task PublishAsync(string topic, string schema, string contentType, byte[] payload, CancellationToken cancellationToken)
+        public Task<MqttClientPublishResult> PublishAsync(string topic, string schema, string contentType, byte[] payload, CancellationToken cancellationToken)
         {
             // publish
             var msg = new MqttApplicationMessageBuilder().WithTopic(topic)
@@ -176,7 +176,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="msg">The MQTT application message to publish.</param>
         /// <param name="cancellationToken">The cancellation token for the operation.</param>
         /// <returns>A task representing the asynchronous operation.</returns>
-        public Task PublishAsync(MqttApplicationMessage msg, CancellationToken cancellationToken)
+        public Task<MqttClientPublishResult> PublishAsync(MqttApplicationMessage msg, CancellationToken cancellationToken)
         {
             return _operationalClient.PublishAsync(msg, cancellationToken);
         }
@@ -205,14 +205,14 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="retain">Whether the message should be retained by the broker.</param>
         /// <param name="cancellationToken">Cancellation token for the operation.</param>
         /// <returns>A task representing the asynchronous operation.</returns>
-        public async Task PublishHealthStatusAsync(string topic,
-                                                   ConnectionStatus connectionStatus,
-                                                   HealthStatus healthStatus,
-                                                   DateTime since,
-                                                   IServiceProviderClientHandler client,
-                                                   byte[]? correlationData,
-                                                   bool retain,
-                                                   CancellationToken cancellationToken)
+        public async Task<MqttClientPublishResult> PublishHealthStatusAsync(string topic,
+                                                                            ConnectionStatus connectionStatus,
+                                                                            HealthStatus healthStatus,
+                                                                            DateTime since,
+                                                                            IServiceProviderClientHandler client,
+                                                                            byte[]? correlationData,
+                                                                            bool retain,
+                                                                            CancellationToken cancellationToken)
         {
             correlationData ??= Guid.NewGuid().ToByteArray();
             var flatBufferConnectionStatus = connectionStatus.ToFlatBufferConnectionStatus();
@@ -231,11 +231,12 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
             try
             {
-                await client.PublishAsync(msg, CancellationToken.None);
+                return await client.PublishAsync(msg, CancellationToken.None);
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed publishing {Topic}", topic);
+                return new MqttClientPublishResult(0, MqttClientPublishReasonCode.UnspecifiedError, ex.ToString(), []);
             }
         }
 

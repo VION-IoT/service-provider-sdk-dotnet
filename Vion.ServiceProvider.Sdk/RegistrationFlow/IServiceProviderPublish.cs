@@ -1,4 +1,4 @@
-﻿using System.Threading;
+using System.Threading;
 using System.Threading.Tasks;
 using MQTTnet;
 
@@ -18,7 +18,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="payload">The message payload as byte array.</param>
         /// <param name="cancellationToken">Cancellation token for the operation.</param>
         /// <returns>A task representing the asynchronous operation.</returns>
-        Task PublishAsync(string topic, string schema, string contentType, byte[] payload, CancellationToken cancellationToken);
+        Task<MqttClientPublishResult> PublishAsync(string topic, string schema, string contentType, byte[] payload, CancellationToken cancellationToken);
 
         /// <summary>
         /// Publishes an MQTT application message.
@@ -26,6 +26,6 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="msg">The MQTT application message to publish.</param>
         /// <param name="cancellationToken">Cancellation token for the operation.</param>
         /// <returns>A task representing the asynchronous operation.</returns>
-        Task PublishAsync(MqttApplicationMessage msg, CancellationToken cancellationToken);
+        Task<MqttClientPublishResult> PublishAsync(MqttApplicationMessage msg, CancellationToken cancellationToken);
     }
 }
