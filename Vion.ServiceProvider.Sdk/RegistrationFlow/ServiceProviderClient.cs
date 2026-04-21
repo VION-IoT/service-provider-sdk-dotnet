@@ -470,7 +470,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             }
 
             // dispatch to user handlers
-            var handlers = _handlers.Where(h => arg.ApplicationMessage.Topic.Contains(h.TopicPartToMatch)).ToList();
+            var handlers = _handlers.Where(h => MqttTopicFilterComparer.Compare(arg.ApplicationMessage.Topic, h.TopicFilter) == MqttTopicFilterCompareResult.IsMatch).ToList();
 
             if (handlers.Any())
             {

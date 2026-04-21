@@ -13,9 +13,12 @@
         <Company>Vion-IoT</Company>
         <Description>Sdk for building Vion service providers</Description>
         <IsPackable>true</IsPackable>
-        <Version>0.0.8</Version>
+        <Version>0.0.9</Version>
         <PackageReleaseNotes>
-            <![CDATA[0.0.8:
+            <![CDATA[0.0.9:
+- Updated handler dispatch logic to use MqttTopicFilterComparer for precise topic filter matching instead of substring checks.
+
+0.0.8:
 - Refactored MQTT topic construction to use ServiceProviderTopics helpers, ensuring consistent formatting and preventing double slashes. Added methods for topic generation, introduced initial health state publishing, improved health status response handling, enhanced operational credential logging, cleaned up code.
             
 0.0.7:
