@@ -138,6 +138,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                     await SendDeclarationAsync(_operationalData, serviceProviderDeclarationPayload, stoppingToken);
 
                     await SetupHandlersAsync(stoppingToken);
+                    await PublishInitialHealthStateAsync(stoppingToken);
                 }
                 catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
                 {
@@ -214,23 +215,26 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                                             bool retain,
                                                                             CancellationToken cancellationToken)
         {
-            correlationData ??= Guid.NewGuid().ToByteArray();
-            var flatBufferConnectionStatus = connectionStatus.ToFlatBufferConnectionStatus();
-            var flatBufferHealthStatus = healthStatus.ToFlatBufferHealthStatus();
-            var payload = FlatBufferPayloadFactory.CreateComponentHealthStatusPayload(client.ServiceProviderIdentifier!, flatBufferConnectionStatus, flatBufferHealthStatus, since);
-            var schema = nameof(ComponentHealthStatusPayload);
-            var msg = new MqttApplicationMessageBuilder().WithTopic(topic)
-                                                         .WithPayload(payload)
-                                                         .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
-                                                         .WithContentType(MessageMimeTypes.FlatBuffer)
-                                                         .WithCorrelationData(correlationData)
-                                                         .WithUserProperty(PublishedAt.Name, Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format)))
-                                                         .WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(schema))
-                                                         .WithRetainFlag(retain)
-                                                         .Build();
-
             try
             {
+                correlationData ??= Guid.NewGuid().ToByteArray();
+                var flatBufferConnectionStatus = connectionStatus.ToFlatBufferConnectionStatus();
+                var flatBufferHealthStatus = healthStatus.ToFlatBufferHealthStatus();
+                var payload = FlatBufferPayloadFactory.CreateComponentHealthStatusPayload(client.ServiceProviderIdentifier!,
+                                                                                          flatBufferConnectionStatus,
+                                                                                          flatBufferHealthStatus,
+                                                                                          since);
+                var schema = nameof(ComponentHealthStatusPayload);
+                var msg = new MqttApplicationMessageBuilder().WithTopic(topic)
+                                                             .WithPayload(payload)
+                                                             .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
+                                                             .WithContentType(MessageMimeTypes.FlatBuffer)
+                                                             .WithCorrelationData(correlationData)
+                                                             .WithUserProperty(PublishedAt.Name, Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format)))
+                                                             .WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(schema))
+                                                             .WithRetainFlag(retain)
+                                                             .Build();
+
                 return await client.PublishAsync(msg, CancellationToken.None);
             }
             catch (Exception ex)
@@ -238,6 +242,18 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 _logger.LogWarning(ex, "Failed publishing {Topic}", topic);
                 return new MqttClientPublishResult(0, MqttClientPublishReasonCode.UnspecifiedError, ex.ToString(), []);
             }
+        }
+
+        private Task PublishInitialHealthStateAsync(CancellationToken stoppingToken)
+        {
+            return PublishHealthStatusAsync(_topicComponentHealthState!,
+                                            ConnectionStatus.Online,
+                                            HealthStatus.Unknown,
+                                            DateTime.UtcNow,
+                                            this,
+                                            null,
+                                            true,
+                                            stoppingToken);
         }
 
         private void RegisterForAppShutdown(CancellationToken? appStoppingToken)
@@ -291,20 +307,29 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 _healthStateProviderFunc = handlerBuilder.HealthCheckStatusProviderFunc;
             }
 
-            var topicGetComponentHealth = $"{_operationalData!.InstallationTopic}{_operationalData.ConnectionData.ServiceProviderIdentifier}{Topics.ComponentHealthGet}";
+            var topicGetComponentHealth =
+                ServiceProviderTopics.GetTopicGetComponentHealth(_operationalData!.InstallationTopic, _operationalData.ConnectionData.ServiceProviderIdentifier);
             RegisterHandler(topicGetComponentHealth,
                             async (client, eventArgs) =>
                             {
-                                var responseTopic = eventArgs.ApplicationMessage.ResponseTopic;
                                 var healthStatus = _healthStateProviderFunc?.Invoke() ?? HealthStatus.Healthy;
-                                await PublishHealthStatusAsync(responseTopic,
-                                                               ConnectionStatus.Online,
-                                                               healthStatus,
-                                                               DateTime.UtcNow,
-                                                               client,
-                                                               eventArgs.ApplicationMessage.CorrelationData,
-                                                               false,
-                                                               stoppingToken);
+                                var responseTopic = eventArgs.ApplicationMessage.ResponseTopic;
+                                if (!string.IsNullOrEmpty(responseTopic))
+                                {
+                                    await PublishHealthStatusAsync(responseTopic,
+                                                                   ConnectionStatus.Online,
+                                                                   healthStatus,
+                                                                   DateTime.UtcNow,
+                                                                   client,
+                                                                   eventArgs.ApplicationMessage.CorrelationData,
+                                                                   false,
+                                                                   stoppingToken);
+                                }
+                                else
+                                {
+                                    _logger.LogWarning("Received {Topic} message without response topic, cannot send health status response", topicGetComponentHealth);
+                                }
+
                                 await PublishHealthStatusAsync(_topicComponentHealthState!,
                                                                ConnectionStatus.Online,
                                                                healthStatus,
@@ -397,7 +422,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                                .WithCredentials(_operationalData!.Username, _operationalData!.Password);
 
             // last will
-            _topicComponentHealthState = $"{_operationalData.InstallationTopic}{serviceProviderIdentifier}{Topics.ComponentHealthState}";
+            _topicComponentHealthState = ServiceProviderTopics.GetTopicComponentHealthState(_operationalData!.InstallationTopic, serviceProviderIdentifier);
             optionsBuilder.WithWillTopic(_topicComponentHealthState)
                           .WithWillCorrelationData(Guid.NewGuid().ToByteArray())
                           .WithWillContentType(MessageMimeTypes.FlatBuffer)
@@ -832,11 +857,21 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 var acceptedPayload = await tcs.Task;
 
                 _logger.LogInformation("Registration accepted after {PublishCount} publish(es) - received operational credentials", publishCount);
-                return new OperationalData(new MqttConnectionData(connectionData.ServiceProviderIdentifier, acceptedPayload.Host, acceptedPayload.Port),
-                                           acceptedPayload.InstallationTopic,
-                                           acceptedPayload.ClientId,
-                                           acceptedPayload.Username,
-                                           acceptedPayload.Password);
+                var operationalData = new OperationalData(new MqttConnectionData(connectionData.ServiceProviderIdentifier, acceptedPayload.Host, acceptedPayload.Port),
+                                                          acceptedPayload.InstallationTopic,
+                                                          acceptedPayload.ClientId,
+                                                          acceptedPayload.Username,
+                                                          acceptedPayload.Password);
+                _logger.LogInformation("Operational credentials:\n    InstallationTopic: {InstallationTopic}\n    ClientId: {ClientId}\n    Username: {Username}\n    Password: {PasswordLength} characters\n" +
+                                       "    ServiceProviderIdentifier: {ServiceProviderIdentifier}\n    Host: {Host}\n    Port: {Port}",
+                                       operationalData.InstallationTopic,
+                                       operationalData.ClientId,
+                                       operationalData.Username,
+                                       operationalData.Password.Length,
+                                       operationalData.ConnectionData.ServiceProviderIdentifier,
+                                       operationalData.ConnectionData.Host,
+                                       operationalData.ConnectionData.Port);
+                return operationalData;
             }
             finally
             {
@@ -867,7 +902,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         {
             var installationTopic = operationalData.InstallationTopic;
             var payload = JsonSerializer.SerializeToUtf8Bytes(declaration, ServiceProviderJsonContext.Default.ServiceProviderDeclarationPayload);
-            var topic = $"{installationTopic}/{operationalData.ConnectionData.ServiceProviderIdentifier}{Topics.ServiceProviderDeclaration}";
+            var topic = ServiceProviderTopics.GetServiceProviderDeclarationTopic(installationTopic, operationalData.ConnectionData.ServiceProviderIdentifier);
             var msg = new MqttApplicationMessageBuilder().WithTopic(topic)
                                                          .WithPayload(payload)
                                                          .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
@@ -878,16 +913,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                          .WithRetainFlag()
                                                          .Build();
 
-            //try
-            {
-                await _operationalClient.PublishAsync(msg, cancellationToken);
-                _logger.LogInformation("Published service provider declaration on {Topic}", topic);
-            }
-
-            //catch (Exception ex)
-            {
-                //_logger.LogWarning(ex, "Failed publishing declaration on {Topic}", topic);
-            }
+            await _operationalClient.PublishAsync(msg, cancellationToken);
+            _logger.LogInformation("Published service provider declaration on {Topic}", topic);
         }
 
         // Safe cancellation helper

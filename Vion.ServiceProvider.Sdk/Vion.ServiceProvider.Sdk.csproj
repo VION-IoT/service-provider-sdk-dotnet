@@ -13,9 +13,12 @@
         <Company>Vion-IoT</Company>
         <Description>Sdk for building Vion service providers</Description>
         <IsPackable>true</IsPackable>
-        <Version>0.0.7</Version>
+        <Version>0.0.8</Version>
         <PackageReleaseNotes>
-            <![CDATA[0.0.7:
+            <![CDATA[0.0.8:
+- Refactored MQTT topic construction to use ServiceProviderTopics helpers, ensuring consistent formatting and preventing double slashes. Added methods for topic generation, introduced initial health state publishing, improved health status response handling, enhanced operational credential logging, cleaned up code.
+            
+0.0.7:
 - Removed excess '/' in topics because InstallationTopic has a trailing '/' and this caused double '//' in the topics.
 - Introduced ServiceProviderTopics class to centralize topic definitions and ensure consistency across the SDK. This change simplifies topic management and reduces the risk of errors due to typos or inconsistencies in topic strings.
 
