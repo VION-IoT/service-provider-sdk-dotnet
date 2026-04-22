@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
+using Shared.Contracts.Events.CloudToMesh;
 using Shared.Contracts.Events.MeshToCloud;
-using Shared.Contracts.Events.MeshToServiceProvider;
 using Shared.Contracts.Events.ServiceProviderToMesh;
 using Vion.ServiceProvider.Sdk.RegistrationFlow;
 
@@ -11,10 +11,11 @@ namespace Vion.ServiceProvider.Sdk.JsonSerializationContexts
 {
     [JsonSerializable(typeof(ServiceProviderDeclarationPayload))]
     [JsonSerializable(typeof(ServiceProviderRegistrationPayload))]
-    [JsonSerializable(typeof(ServiceProviderRegistrationAcceptedPayload))]
+    [JsonSerializable(typeof(Shared.Contracts.Events.MeshToServiceProvider.ServiceProviderRegistrationAcceptedPayload))]
     [JsonSerializable(typeof(ServiceProviderRegistrationRequestPayload))]
     [JsonSerializable(typeof(Payloads.ServiceProviderSetupSchemaPayload))]
     [JsonSerializable(typeof(Payloads.ServiceProviderSetupSelectionPayload))]
+    [JsonSerializable(typeof(SetLogLevelPayload))]
     [JsonSerializable(typeof(LogLevelStatePayload))]
     [JsonSerializable(typeof(Dictionary<string, object>))]
     [JsonSerializable(typeof(string))]

@@ -13,9 +13,12 @@
         <Company>Vion-IoT</Company>
         <Description>Sdk for building Vion service providers</Description>
         <IsPackable>true</IsPackable>
-        <Version>0.1.1</Version>
+        <Version>0.1.2</Version>
         <PackageReleaseNotes>
-            <![CDATA[0.1.1:
+            <![CDATA[0.1.2:
+- Added support for SetLogLevelPayload serialization.
+
+0.1.1:
 - Enabled restart and loglevel command configuration for service providers.
 
 0.1.0:
