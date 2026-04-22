@@ -13,9 +13,12 @@
         <Company>Vion-IoT</Company>
         <Description>Sdk for building Vion service providers</Description>
         <IsPackable>true</IsPackable>
-        <Version>0.1.0</Version>
+        <Version>0.1.1</Version>
         <PackageReleaseNotes>
-            <![CDATA[0.1.0:
+            <![CDATA[0.1.1:
+- Enabled restart and loglevel command configuration for service providers.
+
+0.1.0:
 - Added restart handling to the SDK, allowing service providers to respond to restart commands from the platform. This includes implementing a handler for restart events and ensuring that the service provider can gracefully shut down and restart as needed.
 - Added loglevel handling to the SDK, enabling service providers to adjust their logging verbosity based on commands from the platform. This includes implementing a handler for loglevel change events and allowing dynamic updates to the logging configuration.
 

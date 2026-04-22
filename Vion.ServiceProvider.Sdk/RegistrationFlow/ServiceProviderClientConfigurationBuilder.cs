@@ -325,7 +325,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// </summary>
         /// <param name="handlerSetupCallback">The callback action to configure handlers.</param>
         /// <returns>A builder for completing the configuration.</returns>
-        public SetupSchemaBuilderFinish WithHandlers(Action<IHandlerBuilder> handlerSetupCallback)
+        public SetupAddRestartCallback WithHandlers(Action<IHandlerBuilder> handlerSetupCallback)
         {
             _config.HandlerSetupCallback = (installationTopic, serviceProviderIdentifier, declarationPayload) =>
                                            {
@@ -350,7 +350,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
                                                return handlerBuilder;
                                            };
-            return new SetupSchemaBuilderFinish(_config);
+            return new SetupAddRestartCallback(_config);
         }
     }
 
