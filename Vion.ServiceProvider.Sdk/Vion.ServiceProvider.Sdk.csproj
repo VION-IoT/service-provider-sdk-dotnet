@@ -13,9 +13,13 @@
         <Company>Vion-IoT</Company>
         <Description>Sdk for building Vion service providers</Description>
         <IsPackable>true</IsPackable>
-        <Version>0.0.9</Version>
+        <Version>0.1.0</Version>
         <PackageReleaseNotes>
-            <![CDATA[0.0.9:
+            <![CDATA[0.1.0:
+- Added restart handling to the SDK, allowing service providers to respond to restart commands from the platform. This includes implementing a handler for restart events and ensuring that the service provider can gracefully shut down and restart as needed.
+- Added loglevel handling to the SDK, enabling service providers to adjust their logging verbosity based on commands from the platform. This includes implementing a handler for loglevel change events and allowing dynamic updates to the logging configuration.
+
+0.0.9:
 - Updated handler dispatch logic to use MqttTopicFilterComparer for precise topic filter matching instead of substring checks.
 
 0.0.8:
@@ -40,7 +44,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Shared.Contracts" Version="26.0.0"/>
+        <PackageReference Include="Shared.Contracts" Version="28.0.0"/>
         <PackageReference Include="MQTTnet" Version="5.1.0.1559"/>
     </ItemGroup>
 

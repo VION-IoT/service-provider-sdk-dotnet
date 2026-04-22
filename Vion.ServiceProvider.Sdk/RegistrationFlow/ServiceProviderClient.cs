@@ -138,7 +138,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                     await SendDeclarationAsync(_operationalData, serviceProviderDeclarationPayload, stoppingToken);
 
                     await SetupHandlersAsync(stoppingToken);
-                    await PublishInitialHealthStateAsync(stoppingToken);
+
+                    await PublishInitialStatesAsync(stoppingToken);
                 }
                 catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
                 {
@@ -235,7 +236,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                              .WithRetainFlag(retain)
                                                              .Build();
 
-                return await client.PublishAsync(msg, CancellationToken.None);
+                return await client.PublishAsync(msg, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -244,16 +245,45 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             }
         }
 
-        private Task PublishInitialHealthStateAsync(CancellationToken stoppingToken)
+        private async Task PublishInitialStatesAsync(CancellationToken stoppingToken)
         {
-            return PublishHealthStatusAsync(_topicComponentHealthState!,
-                                            ConnectionStatus.Online,
-                                            HealthStatus.Unknown,
-                                            DateTime.UtcNow,
-                                            this,
-                                            null,
-                                            true,
-                                            stoppingToken);
+            var topicComponentHealthState =
+                ServiceProviderTopics.GetTopicComponentHealthState(_operationalData!.InstallationTopic, _operationalData!.ConnectionData.ServiceProviderIdentifier);
+            await PublishHealthStatusAsync(topicComponentHealthState,
+                                           ConnectionStatus.Online,
+                                           HealthStatus.Unknown,
+                                           DateTime.UtcNow,
+                                           this,
+                                           null,
+                                           true,
+                                           stoppingToken);
+
+            await PublishLogLevelStateAsync();
+        }
+
+        private async Task PublishLogLevelStateAsync()
+        {
+            var logLevelStateTopic = ServiceProviderTopics.LogLevelStateTopic(_operationalData!.InstallationTopic, _operationalData!.ConnectionData.ServiceProviderIdentifier);
+            var currentLevel = LogLevel.Debug;
+            var payload = JsonSerializer.SerializeToUtf8Bytes(new LogLevelStatePayload(currentLevel), ServiceProviderJsonContext.Default.LogLevelStatePayload);
+            var msg = new MqttApplicationMessageBuilder().WithTopic(logLevelStateTopic)
+                                                         .WithPayload(payload)
+                                                         .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                                                         .WithContentType(MessageMimeTypes.Json)
+                                                         .WithUserProperty(PublishedAt.Name, Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format)))
+                                                         .WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(nameof(LogLevelStatePayload)))
+                                                         .WithRetainFlag()
+                                                         .Build();
+
+            try
+            {
+                await PublishAsync(msg, CancellationToken.None);
+                _logger.LogInformation("Published log level state {LogLevel} on {Topic}", currentLevel, logLevelStateTopic);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed publishing log level state on {Topic}", logLevelStateTopic);
+            }
         }
 
         private void RegisterForAppShutdown(CancellationToken? appStoppingToken)
@@ -307,6 +337,15 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 _healthStateProviderFunc = handlerBuilder.HealthCheckStatusProviderFunc;
             }
 
+            RegisterAdditionalHandlers(newHandlers, stoppingToken);
+
+            Interlocked.Exchange(ref _handlers, newHandlers); // Atomic swap of complete bag
+
+            return InternalUpdateSubscriptionAsync(_handlers, stoppingToken);
+        }
+
+        private void RegisterAdditionalHandlers(ConcurrentBag<HandlerConfiguration> newHandlers, CancellationToken stoppingToken)
+        {
             var topicGetComponentHealth =
                 ServiceProviderTopics.GetTopicGetComponentHealth(_operationalData!.InstallationTopic, _operationalData.ConnectionData.ServiceProviderIdentifier);
             RegisterHandler(topicGetComponentHealth,
@@ -314,6 +353,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                             {
                                 var healthStatus = _healthStateProviderFunc?.Invoke() ?? HealthStatus.Healthy;
                                 var responseTopic = eventArgs.ApplicationMessage.ResponseTopic;
+
+                                // todo is it enough to send it only to the response topic? do we need to also publish it to the general health state topic for monitoring purposes? (currently doing both)
                                 if (!string.IsNullOrEmpty(responseTopic))
                                 {
                                     await PublishHealthStatusAsync(responseTopic,
@@ -341,13 +382,15 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                             },
                             newHandlers);
 
-            Interlocked.Exchange(ref _handlers, newHandlers); // Atomic swap of complete bag
+            var restartTopic = ServiceProviderTopics.GetRestartTopic(_operationalData!.InstallationTopic, _operationalData.ConnectionData.ServiceProviderIdentifier);
+            RegisterHandler(restartTopic, (client, eventArgs) => _configuration.OnRestartCallback?.Invoke(client, eventArgs), newHandlers);
 
-            return InternalUpdateSubscriptionAsync(_handlers, stoppingToken);
+            var logLevelTopic = ServiceProviderTopics.LogLevelSetTopic(_operationalData!.InstallationTopic, _operationalData.ConnectionData.ServiceProviderIdentifier);
+            RegisterHandler(logLevelTopic, (client, eventArgs) => _configuration.OnLogLevelChangeCallback?.Invoke(client, eventArgs), newHandlers);
         }
 
         private void RegisterHandler(string topic,
-                                     Func<IServiceProviderClientHandler, MqttApplicationMessageReceivedEventArgs, Task> handler,
+                                     Func<IServiceProviderClientHandler, MqttApplicationMessageReceivedEventArgs, Task?> handler,
                                      ConcurrentBag<HandlerConfiguration> handlers)
         {
             if (topic.Contains("+") || topic.Contains("#"))

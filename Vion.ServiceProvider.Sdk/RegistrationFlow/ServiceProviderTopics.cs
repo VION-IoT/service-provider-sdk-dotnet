@@ -43,5 +43,20 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         {
             return $"{installationTopic}/{serviceProviderIdentifier}{Topics.ServiceProviderDeclaration}";
         }
+
+        public static string GetRestartTopic(string installationTopic, string serviceProviderIdentifier)
+        {
+            return $"{installationTopic}/{serviceProviderIdentifier}{Topics.ServiceProviderRestart}";
+        }
+
+        public static string LogLevelSetTopic(string installationTopic, string serviceProviderIdentifier)
+        {
+            return $"{installationTopic}/{serviceProviderIdentifier}{Topics.ServiceProviderLogLevelSet}";
+        }
+
+        public static string LogLevelStateTopic(string installationTopic, string serviceProviderIdentifier)
+        {
+            return $"{installationTopic}/{serviceProviderIdentifier}{Topics.ServiceProviderLogLevelState}";
+        }
     }
 }

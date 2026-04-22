@@ -15,6 +15,7 @@ namespace Vion.ServiceProvider.Sdk.JsonSerializationContexts
     [JsonSerializable(typeof(ServiceProviderRegistrationRequestPayload))]
     [JsonSerializable(typeof(Payloads.ServiceProviderSetupSchemaPayload))]
     [JsonSerializable(typeof(Payloads.ServiceProviderSetupSelectionPayload))]
+    [JsonSerializable(typeof(LogLevelStatePayload))]
     [JsonSerializable(typeof(Dictionary<string, object>))]
     [JsonSerializable(typeof(string))]
     [JsonSerializable(typeof(bool))]
