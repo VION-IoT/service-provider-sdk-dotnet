@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using MQTTnet;
 using Shared.Contracts.Events.MeshToCloud;
 
@@ -133,6 +134,11 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// Gets or sets the callback for changing the log level of the application.
         /// </summary>
         public Func<IServiceProviderClientHandler, MqttApplicationMessageReceivedEventArgs, Task>? OnLogLevelChangeCallback { get; set; }
+
+        /// <summary>
+        /// Gets or sets the callback for providing the current log level.
+        /// </summary>
+        public Func<LogLevel>? CurrentLogLevelProviderCallback { get; set; }
     }
 
     /// <summary>
@@ -401,11 +407,14 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <summary>
         /// Configures the log level change callback for the service provider.
         /// </summary>
-        /// <param name="onLogLevelChangeCallback">The callback function to be invoked on log level change.</param>
+        /// <param name="onLogLevelChangedCallback">The callback function to be invoked on log level change.</param>
+        /// <param name="logLevelProviderCallback">The callback function to provide the current log level.</param>
         /// <returns>A builder for completing the service provider client configuration.</returns>
-        public SetupSchemaBuilderFinish WithLogLevelChangeCallback(Func<IServiceProviderClientHandler, MqttApplicationMessageReceivedEventArgs, Task> onLogLevelChangeCallback)
+        public SetupSchemaBuilderFinish WithLogLevelChangeCallback(Func<IServiceProviderClientHandler, MqttApplicationMessageReceivedEventArgs, Task> onLogLevelChangedCallback,
+                                                                   Func<LogLevel> logLevelProviderCallback)
         {
-            _config.OnLogLevelChangeCallback = onLogLevelChangeCallback;
+            _config.OnLogLevelChangeCallback = onLogLevelChangedCallback;
+            _config.CurrentLogLevelProviderCallback = logLevelProviderCallback;
             return new SetupSchemaBuilderFinish(_config);
         }
     }

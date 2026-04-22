@@ -13,9 +13,12 @@
         <Company>Vion-IoT</Company>
         <Description>Sdk for building Vion service providers</Description>
         <IsPackable>true</IsPackable>
-        <Version>0.1.3</Version>
+        <Version>0.2.0</Version>
         <PackageReleaseNotes>
-            <![CDATA[0.1.3:
+            <![CDATA[0.2.0:
+- Added support for publishing the current LogLevel.
+
+0.1.3:
 - Added support for JsonStringEnumConverter for LogLevel serialization.
 
 0.1.2:

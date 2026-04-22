@@ -17,8 +17,14 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="contentType">The content type of the payload.</param>
         /// <param name="payload">The message payload as byte array.</param>
         /// <param name="cancellationToken">Cancellation token for the operation.</param>
+        /// <param name="retain">Indicates whether the message should be retained by the broker.</param>
         /// <returns>A task representing the asynchronous operation.</returns>
-        Task<MqttClientPublishResult> PublishAsync(string topic, string schema, string contentType, byte[] payload, CancellationToken cancellationToken);
+        Task<MqttClientPublishResult> PublishAsync(string topic,
+                                                   string schema,
+                                                   string contentType,
+                                                   byte[] payload,
+                                                   CancellationToken cancellationToken,
+                                                   bool retain = true);
 
         /// <summary>
         /// Publishes an MQTT application message.

@@ -1,12 +1,3 @@
-using System;
-using System.Buffers;
-using System.Collections.Concurrent;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
-using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using MQTTnet;
 using MQTTnet.Formatter;
@@ -17,6 +8,15 @@ using Shared.Contracts.Events.MeshToServiceProvider;
 using Shared.Contracts.Events.ServiceProviderToMesh;
 using Shared.Contracts.FlatBuffers.System.Health;
 using Shared.Contracts.Mqtt;
+using System;
+using System.Buffers;
+using System.Collections.Concurrent;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using Vion.ServiceProvider.Sdk.JsonSerializationContexts;
 using Vion.ServiceProvider.Sdk.RegistrationFlow.Extensions;
 using static Shared.Contracts.Mqtt.MqttUserProperties;
@@ -157,7 +157,12 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         }
 
         /// <inheritdoc />
-        public Task<MqttClientPublishResult> PublishAsync(string topic, string schema, string contentType, byte[] payload, CancellationToken cancellationToken)
+        public Task<MqttClientPublishResult> PublishAsync(string topic,
+                                                          string schema,
+                                                          string contentType,
+                                                          byte[] payload,
+                                                          CancellationToken cancellationToken,
+                                                          bool retain = true)
         {
             // publish
             var msg = new MqttApplicationMessageBuilder().WithTopic(topic)
@@ -166,7 +171,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                          .WithContentType(contentType)
                                                          .WithUserProperty(PublishedAt.Name, Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format)))
                                                          .WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(schema))
-                                                         .WithRetainFlag()
+                                                         .WithRetainFlag(retain)
                                                          .Build();
 
             return PublishAsync(msg, cancellationToken);
@@ -184,29 +189,6 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         }
 
         /// <inheritdoc />
-        public string? InstallationTopic
-        {
-            get => _operationalData?.InstallationTopic;
-        }
-
-        /// <inheritdoc />
-        public string? ServiceProviderIdentifier
-        {
-            get => _operationalData?.ConnectionData.ServiceProviderIdentifier;
-        }
-
-        /// <summary>
-        /// Publishes the health status of the service provider to the specified MQTT topic.
-        /// </summary>
-        /// <param name="topic">The MQTT topic to publish to.</param>
-        /// <param name="connectionStatus">The connection status of the service provider.</param>
-        /// <param name="healthStatus">The health status of the service provider.</param>
-        /// <param name="since">The timestamp since when this status has been active.</param>
-        /// <param name="client">The service provider client handler.</param>
-        /// <param name="correlationData">Optional correlation data for the message.</param>
-        /// <param name="retain">Whether the message should be retained by the broker.</param>
-        /// <param name="cancellationToken">Cancellation token for the operation.</param>
-        /// <returns>A task representing the asynchronous operation.</returns>
         public async Task<MqttClientPublishResult> PublishHealthStatusAsync(string topic,
                                                                             ConnectionStatus connectionStatus,
                                                                             HealthStatus healthStatus,
@@ -245,6 +227,44 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             }
         }
 
+        /// <inheritdoc />
+        public async Task PublishLogLevelStateAsync()
+        {
+            try
+            {
+                if (InstallationTopic == null || ServiceProviderIdentifier == null)
+                {
+                    return; // Not yet registered, skip publishing
+                }
+
+                var currentLevel = _configuration.CurrentLogLevelProviderCallback!.Invoke();
+                var topic = $"{InstallationTopic}/{ServiceProviderIdentifier}{Topics.ServiceProviderLogLevelState}";
+                var payload = JsonSerializer.SerializeToUtf8Bytes(new LogLevelStatePayload(currentLevel), ServiceProviderJsonContext.Default.LogLevelStatePayload);
+                var result = await PublishAsync(topic, nameof(LogLevelStatePayload), MessageMimeTypes.Json, payload, CancellationToken.None);
+
+                if (!result.IsSuccess)
+                {
+                    _logger.LogWarning("Failed to publish log level state: ({ReasonCode}) {ReasonString}", result.ReasonCode, result.ReasonString);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to publish log level state change");
+            }
+        }
+
+        /// <inheritdoc />
+        public string? InstallationTopic
+        {
+            get => _operationalData?.InstallationTopic;
+        }
+
+        /// <inheritdoc />
+        public string? ServiceProviderIdentifier
+        {
+            get => _operationalData?.ConnectionData.ServiceProviderIdentifier;
+        }
+
         private async Task PublishInitialStatesAsync(CancellationToken stoppingToken)
         {
             var topicComponentHealthState =
@@ -259,31 +279,6 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                            stoppingToken);
 
             await PublishLogLevelStateAsync();
-        }
-
-        private async Task PublishLogLevelStateAsync()
-        {
-            var logLevelStateTopic = ServiceProviderTopics.LogLevelStateTopic(_operationalData!.InstallationTopic, _operationalData!.ConnectionData.ServiceProviderIdentifier);
-            var currentLevel = LogLevel.Debug;
-            var payload = JsonSerializer.SerializeToUtf8Bytes(new LogLevelStatePayload(currentLevel), ServiceProviderJsonContext.Default.LogLevelStatePayload);
-            var msg = new MqttApplicationMessageBuilder().WithTopic(logLevelStateTopic)
-                                                         .WithPayload(payload)
-                                                         .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
-                                                         .WithContentType(MessageMimeTypes.Json)
-                                                         .WithUserProperty(PublishedAt.Name, Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format)))
-                                                         .WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(nameof(LogLevelStatePayload)))
-                                                         .WithRetainFlag()
-                                                         .Build();
-
-            try
-            {
-                await PublishAsync(msg, CancellationToken.None);
-                _logger.LogInformation("Published log level state {LogLevel} on {Topic}", currentLevel, logLevelStateTopic);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed publishing log level state on {Topic}", logLevelStateTopic);
-            }
         }
 
         private void RegisterForAppShutdown(CancellationToken? appStoppingToken)
