@@ -13,9 +13,11 @@
         <Company>Vion-IoT</Company>
         <Description>Sdk for building Vion service providers</Description>
         <IsPackable>true</IsPackable>
-        <Version>0.2.0</Version>
-        <PackageReleaseNotes>
-            <![CDATA[0.2.0:
+        <Version>0.2.1</Version>
+        <PackageReleaseNotes><![CDATA[0.2.1:
+- Added distributed tracing support to the SDK, enabling service providers to emit trace information that can be correlated across the Vion platform for improved observability and debugging. This includes adding trace context propagation to MQTT messages and integrating with popular .NET tracing libraries.
+
+0.2.0:
 - Added support for publishing the current LogLevel.
 
 0.1.3:
