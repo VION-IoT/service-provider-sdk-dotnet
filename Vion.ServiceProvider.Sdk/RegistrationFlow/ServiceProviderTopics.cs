@@ -1,4 +1,4 @@
-using Shared.Contracts.Mqtt;
+using Vion.Contracts.Mqtt;
 
 namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 {

@@ -1,4 +1,4 @@
-﻿See [Confluence documentation](https://ecocoach.atlassian.net/wiki/spaces/NHP/pages/1033732097/Interaktion+HAL+Cloud#Vorschlag) as initial document.
+﻿Initial draft of setup-schema event shapes exchanged between Mesh and service providers.
 
 ```
 // SetupSchemaEvent (here's what CAN be configured, Flat Form)

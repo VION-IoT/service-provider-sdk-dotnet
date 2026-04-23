@@ -1,6 +1,6 @@
 using System;
 using Google.FlatBuffers;
-using Shared.Contracts.FlatBuffers.System.Health;
+using Vion.Contracts.FlatBuffers.System.Health;
 
 namespace Vion.ServiceProvider.Sdk
 {

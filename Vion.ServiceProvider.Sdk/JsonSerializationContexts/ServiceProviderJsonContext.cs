@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
-using Shared.Contracts.Events.MeshToCloud;
-using Shared.Contracts.Events.MeshToServiceProvider;
-using Shared.Contracts.Events.ServiceProviderToMesh;
+using Vion.Contracts.Events.MeshToCloud;
+using Vion.Contracts.Events.MeshToServiceProvider;
+using Vion.Contracts.Events.ServiceProviderToMesh;
 using Vion.ServiceProvider.Sdk.RegistrationFlow;
 
 // ReSharper disable PartialTypeWithSinglePart this must be a partial class because it is generated

@@ -1,6 +1,6 @@
 ﻿Now let me find the `Topics` class to see where the base topic strings are defined, and also search for any other MQTT clients:
 Now let me find the `Topics` class where the constants are defined:
-The `Topics` class comes from `Shared.Contracts.Mqtt`. This is likely a referenced NuGet package or shared library. Let me search for where the IServiceProviderPublish is used and check for any other topic references:
+The `Topics` class comes from `Vion.Contracts.Mqtt`. This is likely a referenced NuGet package or shared library. Let me search for where the IServiceProviderPublish is used and check for any other topic references:
 Now I have a comprehensive view of both MQTT clients and how topics are used. Based on my analysis, here's a complete summary of all MQTT topics:
 
 ---
@@ -45,7 +45,7 @@ Now I have a comprehensive view of both MQTT clients and how topics are used. Ba
 
 ---
 
-### **Topic Constants (from `Shared.Contracts.Mqtt.Topics`)**
+### **Topic Constants (from `Vion.Contracts.Mqtt.Topics`)**
 
 These are external constants referenced throughout the code:
 - `Topics.ServiceProviderRegistrationRequest`
@@ -55,7 +55,7 @@ These are external constants referenced throughout the code:
 - `Topics.ComponentHealthGet`
 - `Topics.ComponentHealthState`
 
-> **Note:** The actual string values for these constants are defined in the external `Shared.Contracts.Mqtt` assembly/package and are not available in this codebase.
+> **Note:** The actual string values for these constants are defined in the external `Vion.Contracts.Mqtt` assembly/package and are not available in this codebase.
 
 ---
 

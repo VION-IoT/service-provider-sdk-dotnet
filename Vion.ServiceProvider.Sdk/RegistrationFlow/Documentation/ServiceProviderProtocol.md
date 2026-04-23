@@ -213,7 +213,7 @@ This structure enables simple broker ACL rules — a provider can be restricted 
 
 ### Built-in Contract Type Topics
 
-The built-in contract types (DigitalIo, AnalogIo, ModbusRtu) use fixed action paths that correspond to the `Topics` constants defined in the `Shared.Contracts` package:
+The built-in contract types (DigitalIo, AnalogIo, ModbusRtu) use fixed action paths that correspond to the `Topics` constants defined in the `Vion.Contracts` package:
 
 DigitalIo provider:
 

@@ -1,0 +1,17 @@
+<Project>
+
+    <!--
+        Shared minimal README for every packable project, so each nupkg has one (nuget.org
+        recommends it and warns NU5039 if absent). A project can override by either:
+          - setting its own <PackageReadmeFile> property, or
+          - placing a README.md next to its csproj.
+    -->
+    <PropertyGroup Condition="'$(IsPackable)' == 'true' AND '$(PackageReadmeFile)' == ''">
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <_UseSharedPackageReadme>true</_UseSharedPackageReadme>
+    </PropertyGroup>
+    <ItemGroup Condition="'$(_UseSharedPackageReadme)' == 'true' AND !Exists('$(MSBuildProjectDirectory)\README.md')">
+        <None Include="$(MSBuildThisFileDirectory)docs\package-readme.md" Pack="true" PackagePath="/README.md"/>
+    </ItemGroup>
+
+</Project>

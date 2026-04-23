@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
@@ -7,34 +7,13 @@
         <Nullable>enable</Nullable>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
-        <!-- NuGet package metadata -->
         <PackageId>Vion.ServiceProvider.Sdk</PackageId>
-        <Authors>Vion-IoT</Authors>
-        <Company>Vion-IoT</Company>
-        <Description>Sdk for building Vion service providers</Description>
+        <Description>SDK for building service providers that integrate with the Vion IoT platform. Handles MQTT connection, registration flow, setup schema exchange, message handler registration, and health reporting.</Description>
         <IsPackable>true</IsPackable>
-        <Version>0.0.7</Version>
-        <PackageReleaseNotes>
-            <![CDATA[0.0.7:
-- Removed excess '/' in topics because InstallationTopic has a trailing '/' and this caused double '//' in the topics.
-- Introduced ServiceProviderTopics class to centralize topic definitions and ensure consistency across the SDK. This change simplifies topic management and reduces the risk of errors due to typos or inconsistencies in topic strings.
-
-0.0.6:
-- Updated PublishAsync methods in IServiceProviderPublish and ServiceProviderClient to return Task<MqttClientPublishResult> for improved error handling and detailed publish results. Also updated PublishHealthStatusAsync to return publish results and handle exceptions by returning an error result.
-
-0.0.5:
-- Updated IHandlerBuilder interface to include the DeclarationEvent.
-
-0.0.4:
-- Adjusted WithHandlers builder method to pass declaration event so the services can be configured accordingly. This change allows service providers to access event details during the configuration phase, enabling more dynamic and context-aware service setups.
-
-0.0.3:
-- Initial release of the Vion Service Provider SDK for .NET. This SDK provides tools and libraries to facilitate the development of service providers that integrate with the Vion IoT platform.]]>
-        </PackageReleaseNotes>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Shared.Contracts" Version="26.0.0"/>
+        <PackageReference Include="Vion.Contracts" Version="0.4.0"/>
         <PackageReference Include="MQTTnet" Version="5.1.0.1559"/>
     </ItemGroup>
 
