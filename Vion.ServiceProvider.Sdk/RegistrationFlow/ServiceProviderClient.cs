@@ -555,7 +555,17 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 {
                     foreach (var handler in handlers)
                     {
-                        await handler.Handler.Invoke(this, arg);
+                        try
+                        {
+                            await handler.Handler.Invoke(this, arg);
+                        }
+                        catch (Exception e)
+                        {
+                            _logger.LogError(e,
+                                             "Error occurred while handling message on topic '{Topic}' in handler registered for '{TopicPart}'",
+                                             arg.ApplicationMessage.Topic,
+                                             handler.TopicPartToMatch);
+                        }
                     }
 
                     return;
