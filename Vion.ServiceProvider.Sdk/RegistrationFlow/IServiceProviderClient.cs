@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using MQTTnet;
-using Shared.Contracts.Events.MeshToCloud;
+using Vion.Contracts.Events.MeshToCloud;
 
 namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 {

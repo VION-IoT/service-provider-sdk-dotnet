@@ -1,4 +1,4 @@
-﻿using Shared.Contracts.Events.MeshToCloud;
+using Vion.Contracts.Events.MeshToCloud;
 
 namespace Vion.ServiceProvider.Sdk.RegistrationFlow.Extensions
 {
@@ -8,32 +8,32 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow.Extensions
     public static class HealthStatusConvertExtension
     {
         /// <summary>
-        /// Converts a <see cref="ConnectionStatus"/> to FlatBuffer <see cref="Shared.Contracts.FlatBuffers.System.Health.ConnectionStatus"/>.
+        /// Converts a <see cref="ConnectionStatus"/> to FlatBuffer <see cref="Vion.Contracts.FlatBuffers.System.Health.ConnectionStatus"/>.
         /// </summary>
         /// <param name="connectionStatus">The connection status to convert.</param>
         /// <returns>The FlatBuffer connection status.</returns>
-        public static Shared.Contracts.FlatBuffers.System.Health.ConnectionStatus ToFlatBufferConnectionStatus(this ConnectionStatus connectionStatus)
+        public static Vion.Contracts.FlatBuffers.System.Health.ConnectionStatus ToFlatBufferConnectionStatus(this ConnectionStatus connectionStatus)
         {
             return connectionStatus switch
             {
-                ConnectionStatus.Online => Shared.Contracts.FlatBuffers.System.Health.ConnectionStatus.Online,
-                ConnectionStatus.Offline => Shared.Contracts.FlatBuffers.System.Health.ConnectionStatus.Offline,
-                _ => Shared.Contracts.FlatBuffers.System.Health.ConnectionStatus.Unknown,
+                ConnectionStatus.Online => Vion.Contracts.FlatBuffers.System.Health.ConnectionStatus.Online,
+                ConnectionStatus.Offline => Vion.Contracts.FlatBuffers.System.Health.ConnectionStatus.Offline,
+                _ => Vion.Contracts.FlatBuffers.System.Health.ConnectionStatus.Unknown,
             };
         }
 
         /// <summary>
-        /// Converts a <see cref="HealthStatus"/> to FlatBuffer <see cref="Shared.Contracts.FlatBuffers.System.Health.HealthStatus"/>.
+        /// Converts a <see cref="HealthStatus"/> to FlatBuffer <see cref="Vion.Contracts.FlatBuffers.System.Health.HealthStatus"/>.
         /// </summary>
         /// <param name="healthStatus">The health status to convert.</param>
         /// <returns>The FlatBuffer health status.</returns>
-        public static Shared.Contracts.FlatBuffers.System.Health.HealthStatus ToFlatBufferHealthStatus(this HealthStatus healthStatus)
+        public static Vion.Contracts.FlatBuffers.System.Health.HealthStatus ToFlatBufferHealthStatus(this HealthStatus healthStatus)
         {
             return healthStatus switch
             {
-                HealthStatus.Healthy => Shared.Contracts.FlatBuffers.System.Health.HealthStatus.Healthy,
-                HealthStatus.Unhealthy => Shared.Contracts.FlatBuffers.System.Health.HealthStatus.Unhealthy,
-                _ => Shared.Contracts.FlatBuffers.System.Health.HealthStatus.Unknown,
+                HealthStatus.Healthy => Vion.Contracts.FlatBuffers.System.Health.HealthStatus.Healthy,
+                HealthStatus.Unhealthy => Vion.Contracts.FlatBuffers.System.Health.HealthStatus.Unhealthy,
+                _ => Vion.Contracts.FlatBuffers.System.Health.HealthStatus.Unknown,
             };
         }
     }

@@ -1,13 +1,3 @@
-using Microsoft.Extensions.Logging;
-using MQTTnet;
-using MQTTnet.Formatter;
-using MQTTnet.Packets;
-using MQTTnet.Protocol;
-using Shared.Contracts.Events.MeshToCloud;
-using Shared.Contracts.Events.MeshToServiceProvider;
-using Shared.Contracts.Events.ServiceProviderToMesh;
-using Shared.Contracts.FlatBuffers.System.Health;
-using Shared.Contracts.Mqtt;
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
@@ -18,12 +8,22 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using MQTTnet;
+using MQTTnet.Formatter;
+using MQTTnet.Packets;
+using MQTTnet.Protocol;
+using Vion.Contracts.Events.MeshToCloud;
+using Vion.Contracts.Events.MeshToServiceProvider;
+using Vion.Contracts.Events.ServiceProviderToMesh;
+using Vion.Contracts.FlatBuffers.System.Health;
+using Vion.Contracts.Mqtt;
 using Vion.ServiceProvider.Sdk.JsonSerializationContexts;
 using Vion.ServiceProvider.Sdk.RegistrationFlow.Extensions;
 using Vion.ServiceProvider.Sdk.Tracing;
-using static Shared.Contracts.Mqtt.MqttUserProperties;
-using ConnectionStatus = Shared.Contracts.Events.MeshToCloud.ConnectionStatus;
-using HealthStatus = Shared.Contracts.Events.MeshToCloud.HealthStatus;
+using static Vion.Contracts.Mqtt.MqttUserProperties;
+using ConnectionStatus = Vion.Contracts.Events.MeshToCloud.ConnectionStatus;
+using HealthStatus = Vion.Contracts.Events.MeshToCloud.HealthStatus;
 
 namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 {
@@ -500,8 +500,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                           .WithWillCorrelationData(Guid.NewGuid().ToByteArray())
                           .WithWillContentType(MessageMimeTypes.FlatBuffer)
                           .WithWillPayload(FlatBufferPayloadFactory.CreateComponentHealthStatusPayload(_operationalData.ConnectionData.ServiceProviderIdentifier,
-                                                                                                       Shared.Contracts.FlatBuffers.System.Health.ConnectionStatus.Offline,
-                                                                                                       Shared.Contracts.FlatBuffers.System.Health.HealthStatus.Unknown,
+                                                                                                       Vion.Contracts.FlatBuffers.System.Health.ConnectionStatus.Offline,
+                                                                                                       Vion.Contracts.FlatBuffers.System.Health.HealthStatus.Unknown,
                                                                                                        null))
                           .WithWillQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
                           .WithWillRetain()

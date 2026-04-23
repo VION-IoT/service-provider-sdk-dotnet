@@ -53,7 +53,7 @@ The SDK provides helper methods in `ServiceProviderTopics` class for building to
 
 ## Topic Constants
 
-The following constants are defined in the external `Shared.Contracts.Mqtt.Topics` assembly:
+The following constants are defined in the external `Vion.Contracts.Mqtt.Topics` class:
 
 - `Topics.ServiceProviderRegistrationRequest`
 - `Topics.ServiceProviderRegistrationAccepted`
@@ -62,7 +62,7 @@ The following constants are defined in the external `Shared.Contracts.Mqtt.Topic
 - `Topics.ComponentHealthGet`
 - `Topics.ComponentHealthState`
 
-> **Note:** The actual string values for these constants are defined in the external `Shared.Contracts.Mqtt` assembly/package.
+> **Note:** The actual string values for these constants are defined in the external `Vion.Contracts.Mqtt` assembly/package.
 
 ---
 

@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using MQTTnet;
-using Shared.Contracts.Events.MeshToCloud;
+using Vion.Contracts.Events.MeshToCloud;
 
 namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 {

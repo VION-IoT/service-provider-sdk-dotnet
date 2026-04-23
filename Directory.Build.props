@@ -1,0 +1,31 @@
+<Project>
+
+    <PropertyGroup>
+        <!-- Version fallback for local builds. CI overrides via -p:Version=x.y.z from the git tag. -->
+        <Version Condition="'$(Version)' == ''">0.0.0-local</Version>
+    </PropertyGroup>
+
+    <PropertyGroup Label="Package metadata">
+        <Authors>Vion IoT</Authors>
+        <Company>Vion IoT</Company>
+        <Copyright>Copyright (c) Vion IoT</Copyright>
+        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/vion-iot/service-provider-sdk-dotnet</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/vion-iot/service-provider-sdk-dotnet</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+    </PropertyGroup>
+
+    <PropertyGroup Label="Source Link &amp; symbol packages">
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <DebugType>portable</DebugType>
+        <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All"/>
+    </ItemGroup>
+
+</Project>

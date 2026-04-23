@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Text;
 using MQTTnet;
 using MQTTnet.Packets;
-using Shared.Contracts.Mqtt;
+using Vion.Contracts.Mqtt;
 
 namespace Vion.ServiceProvider.Sdk.Tracing
 {
