@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using MQTTnet;
 using Vion.Contracts.Events.MeshToCloud;
 
@@ -24,12 +25,14 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
     /// <summary>
     /// Builder class for constructing service provider client configuration.
     /// </summary>
+
+    // ReSharper disable once UnusedType.Global used the code using this sdk
     public class ServiceProviderClientConfigurationBuilder
     {
         /// <summary>
         /// Gets the configuration being built.
         /// </summary>
-        public ServiceProviderClientConfiguration Configuration { get; }
+        private ServiceProviderClientConfiguration Configuration { get; }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ServiceProviderClientConfigurationBuilder" /> class.
@@ -121,6 +124,21 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// Gets or sets the callback for setting up message handlers.
         /// </summary>
         public Func<string, string, ServiceProviderDeclarationPayload, HandlerBuilder>? HandlerSetupCallback { get; set; }
+
+        /// <summary>
+        /// Gets or sets the callback for restarting the application.
+        /// </summary>
+        public Func<IServiceProviderClientHandler, MqttApplicationMessageReceivedEventArgs, Task>? OnRestartCallback { get; set; }
+
+        /// <summary>
+        /// Gets or sets the callback for changing the log level of the application.
+        /// </summary>
+        public Func<IServiceProviderClientHandler, MqttApplicationMessageReceivedEventArgs, Task>? OnLogLevelChangeCallback { get; set; }
+
+        /// <summary>
+        /// Gets or sets the callback for providing the current log level.
+        /// </summary>
+        public Func<LogLevel>? CurrentLogLevelProviderCallback { get; set; }
     }
 
     /// <summary>
@@ -313,7 +331,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// </summary>
         /// <param name="handlerSetupCallback">The callback action to configure handlers.</param>
         /// <returns>A builder for completing the configuration.</returns>
-        public SetupSchemaBuilderFinish WithHandlers(Action<IHandlerBuilder> handlerSetupCallback)
+        public SetupAddRestartCallback WithHandlers(Action<IHandlerBuilder> handlerSetupCallback)
         {
             _config.HandlerSetupCallback = (installationTopic, serviceProviderIdentifier, declarationPayload) =>
                                            {
@@ -338,6 +356,65 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
                                                return handlerBuilder;
                                            };
+            return new SetupAddRestartCallback(_config);
+        }
+    }
+
+    /// <summary>
+    /// Builder class for configuring the restart callback.
+    /// </summary>
+    public class SetupAddRestartCallback
+    {
+        private readonly ServiceProviderClientConfiguration _config;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="SetupAddRestartCallback" /> class.
+        /// </summary>
+        /// <param name="config">The configuration being built.</param>
+        public SetupAddRestartCallback(ServiceProviderClientConfiguration config)
+        {
+            _config = config;
+        }
+
+        /// <summary>
+        /// Configures the restart callback for the service provider.
+        /// </summary>
+        /// <param name="onRestartCallback">The callback function to be invoked on restart.</param>
+        /// <returns>A builder for configuring the log level change callback.</returns>
+        public SetupAddLogLevelChangeCallback WithRestartCallback(Func<IServiceProviderClientHandler, MqttApplicationMessageReceivedEventArgs, Task> onRestartCallback)
+        {
+            _config.OnRestartCallback = onRestartCallback;
+            return new SetupAddLogLevelChangeCallback(_config);
+        }
+    }
+
+    /// <summary>
+    /// Builder class for configuring the log level change callback.
+    /// </summary>
+    public class SetupAddLogLevelChangeCallback
+    {
+        private readonly ServiceProviderClientConfiguration _config;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="SetupAddLogLevelChangeCallback" /> class.
+        /// </summary>
+        /// <param name="config">The configuration being built.</param>
+        public SetupAddLogLevelChangeCallback(ServiceProviderClientConfiguration config)
+        {
+            _config = config;
+        }
+
+        /// <summary>
+        /// Configures the log level change callback for the service provider.
+        /// </summary>
+        /// <param name="onLogLevelChangedCallback">The callback function to be invoked on log level change.</param>
+        /// <param name="logLevelProviderCallback">The callback function to provide the current log level.</param>
+        /// <returns>A builder for completing the service provider client configuration.</returns>
+        public SetupSchemaBuilderFinish WithLogLevelChangeCallback(Func<IServiceProviderClientHandler, MqttApplicationMessageReceivedEventArgs, Task> onLogLevelChangedCallback,
+                                                                   Func<LogLevel> logLevelProviderCallback)
+        {
+            _config.OnLogLevelChangeCallback = onLogLevelChangedCallback;
+            _config.CurrentLogLevelProviderCallback = logLevelProviderCallback;
             return new SetupSchemaBuilderFinish(_config);
         }
     }

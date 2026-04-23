@@ -1,53 +1,60 @@
-﻿Now let me find the `Topics` class to see where the base topic strings are defined, and also search for any other MQTT clients:
-Now let me find the `Topics` class where the constants are defined:
-The `Topics` class comes from `Vion.Contracts.Mqtt`. This is likely a referenced NuGet package or shared library. Let me search for where the IServiceProviderPublish is used and check for any other topic references:
-Now I have a comprehensive view of both MQTT clients and how topics are used. Based on my analysis, here's a complete summary of all MQTT topics:
+# MQTT Topics Documentation
+
+This document provides a comprehensive overview of all MQTT topics used in the Service Provider SDK.
+
+## MQTT Clients
+
+The SDK implements MQTT communication through:
+
+1. **`ServiceProviderClient`** (`Vion.ServiceProvider.Sdk\RegistrationFlow\ServiceProviderClient.cs`) - Uses:
+   - `IMqttClient _operationalClient` - For operational communication after registration
+   - Temporary registration client - Created during registration flow and disposed after completion
 
 ---
 
-## MQTT Topics Summary
+## Subscribed Topics
 
-### **Two MQTT Clients Found:**
-1. **`MqttBridge`** (`HalSim\MqttBridge.cs`) - Uses a single `IMqttClient _client`
-2. **`ServiceProviderClient`** (`HalSim\RegistrationFlow\ServiceProviderClient.cs`) - Uses `IMqttClient _operationalClient` and a temporary registration client
-
----
-
-### **Subscribed Topics**
-
-| Topic Pattern | Phase | File | Line | Origin |
+| Topic Pattern | Phase | File | Method/Line | Description |
 |---------------|-------|------|------|--------|
-| `{Topics.ServiceProviderRegistrationAccepted}/{_secret}` | Registration | `MqttBridge.cs` | 68-69 | Constructor (constant + secret) |
-| `{Topics.ServiceProviderRegistrationDenied}/{_secret}` | Registration | `MqttBridge.cs` | 68-69 | Constructor (constant + secret) |
-| `{_installationTopic}/{_serviceProviderIdentifier}/+/+/hw/do/set` | Operational | `MqttBridge.cs` | 141 | Set after registration accepted |
-| `{_installationTopic}/{_serviceProviderIdentifier}/+/+/hw/ao/set` | Operational | `MqttBridge.cs` | 142 | Set after registration accepted |
-| `{_installationTopic}/{_serviceProviderIdentifier}{Topics.ComponentHealthGet}` | Operational | `MqttBridge.cs` | 143 | Set after registration accepted |
-| `{Topics.ServiceProviderRegistrationAccepted}/{secret}` | Registration | `ServiceProviderClient.cs` | 377 | `RegisterAsync` |
-| `{Topics.ServiceProviderRegistrationDenied}/{secret}` | Registration | `ServiceProviderClient.cs` | 378 | `RegisterAsync` |
-| `{_operationalData.InstallationTopic}{Topics.ComponentHealthGet}` | Operational | `ServiceProviderClient.cs` | 205 | `SetupHandlersAsync` |
-| `{installationTopic}/{serviceProviderIdentifier}/{service}/{contract}/#` | Operational | `ServiceProviderClientConfigurationBuilder.cs` | 183 | Contract handlers (via builder) |
+| `{Topics.ServiceProviderRegistrationAccepted}/{secret}` | Registration | `ServiceProviderClient.cs` | `RegisterAsync` (~705) | Accepts registration with operational credentials |
+| `{Topics.ServiceProviderRegistrationDenied}/{secret}` | Registration | `ServiceProviderClient.cs` | `RegisterAsync` (~706) | Denies registration request |
+| `{installationTopic}{serviceProviderIdentifier}/serviceProvider/setup/selection` | Setup | `ServiceProviderClient.cs` | `SendSetupSchemaAsync` (~525) | Receives setup selection from mesh |
+| `{installationTopic}{serviceProviderIdentifier}/{service}/{contract}/#` | Operational | `ServiceProviderClientConfigurationBuilder.cs` | `WithContractHandler` (~335) | Contract-specific message handlers |
+| Custom topics registered via `WithHandler` | Operational | `ServiceProviderClientConfigurationBuilder.cs` | `WithHandler` (~257) | User-defined message handlers |
 
 ---
 
-### **Published Topics**
+## Published Topics
 
-| Topic Pattern | Phase | File | Line | Origin |
+| Topic Pattern | Phase | File | Method/Line | Description |
 |---------------|-------|------|------|--------|
-| `{Topics.ServiceProviderRegistrationRequest}/{_secret}` | Registration | `MqttBridge.cs` | 291 | `PublishRegistrationAsync` |
-| `{_installationTopic}/{_serviceProviderIdentifier}/{service}/{contract}/hw/{type}/state` | Operational | `MqttBridge.cs` | 96 | `PublishAsync` (DI/AI/DO/AO state) |
-| `{_installationTopic}/{_serviceProviderIdentifier}{Topics.ServiceProviderDeclaration}` | Operational | `MqttBridge.cs` | 318 | `PublishDeclarationAsync` |
-| `{_topicComponentHealthState}` = `{_installationTopic}/{_serviceProviderIdentifier}{Topics.ComponentHealthState}` | Operational | `MqttBridge.cs` | 144, 367 | Health publish + Last Will |
-| Response topic from received message (`e.ApplicationMessage.ResponseTopic`) | Operational | `MqttBridge.cs` | 159 | Health response |
-| `{Topics.ServiceProviderRegistrationRequest}/{serviceProviderIdentifier}/{secret}` | Registration | `ServiceProviderClient.cs` | 422 | `RegisterAsync` |
-| `{installationTopic}{Topics.ServiceProviderDeclaration}/{serviceProviderIdentifier}` | Operational | `ServiceProviderClient.cs` | 492 | `SendDeclarationAsync` |
-| `{_operationalData.InstallationTopic}{Topics.ComponentHealthState}/{serviceProviderIdentifier}` | Operational | `ServiceProviderClient.cs` | 287 | Last Will + health publish |
-| Response topic from received message (health response) | Operational | `ServiceProviderClient.cs` | 209-217 | Health handler |
+| `{Topics.ServiceProviderRegistrationRequest}/{secret}` | Registration | `ServiceProviderClient.cs` | `RegisterAsync` (~758) | Requests registration with mesh broker |
+| `{installationTopic}{serviceProviderIdentifier}/serviceProvider/setup/schema` | Setup | `ServiceProviderClient.cs` | `SendSetupSchemaAsync` (~590) | Publishes setup schema for configuration |
+| `{installationTopic}/{serviceProviderIdentifier}{Topics.ServiceProviderDeclaration}` | Operational | `ServiceProviderClient.cs` | `SendDeclarationAsync` (~893) | Declares service provider capabilities |
+| `{installationTopic}{serviceProviderIdentifier}{Topics.ComponentHealthState}` | Operational | `ServiceProviderClient.cs` | `ConnectOperationalClientAsync` (~400), Last Will (~401) | Health status publication and last will message |
+| Response topic from request | Operational | `ServiceProviderClient.cs` | Health handler (~303-315) | Health status responses to requests |
+| Custom topics via `PublishAsync` | Operational | `ServiceProviderClient.cs` | `PublishAsync` (~158) | User-defined publications |
 
 ---
 
-### **Topic Constants (from `Vion.Contracts.Mqtt.Topics`)**
+## Topic Construction Helpers
 
-These are external constants referenced throughout the code:
+The SDK provides helper methods in `ServiceProviderTopics` class for building topic strings:
+
+| Method | Returns | Usage |
+|--------|---------|-------|
+| `GetRegistrationAcceptedTopic(secret)` | `{Topics.ServiceProviderRegistrationAccepted}/{secret}` | Registration acceptance subscription |
+| `GetRegistrationDeniedTopic(secret)` | `{Topics.ServiceProviderRegistrationDenied}/{secret}` | Registration denial subscription |
+| `GetSetupSchemaTopic(installationTopic, serviceProviderIdentifier)` | `{installationTopic}{serviceProviderIdentifier}/serviceProvider/setup/schema` | Setup schema publication |
+| `GetSelectionTopic(installationTopic, serviceProviderIdentifier)` | `{installationTopic}{serviceProviderIdentifier}/serviceProvider/setup/selection` | Setup selection subscription |
+| `GetContractTopicFilter(installationTopic, serviceProviderIdentifier, serviceAndContractIdentifierPart)` | `{installationTopic}{serviceProviderIdentifier}/{serviceAndContractIdentifierPart}/#` | Contract handler subscriptions |
+
+---
+
+## Topic Constants
+
+The following constants are defined in the external `Vion.Contracts.Mqtt.Topics` class:
+
 - `Topics.ServiceProviderRegistrationRequest`
 - `Topics.ServiceProviderRegistrationAccepted`
 - `Topics.ServiceProviderRegistrationDenied`
@@ -55,16 +62,38 @@ These are external constants referenced throughout the code:
 - `Topics.ComponentHealthGet`
 - `Topics.ComponentHealthState`
 
-> **Note:** The actual string values for these constants are defined in the external `Vion.Contracts.Mqtt` assembly/package and are not available in this codebase.
+> **Note:** The actual string values for these constants are defined in the external `Vion.Contracts.Mqtt` assembly/package.
 
 ---
 
-### **Dynamic Topic Parts**
+## Dynamic Topic Parts
 
-| Variable | Source |
-|----------|--------|
-| `{_secret}` | Generated GUID stored in `data/secret.txt` (`MqttBridge.cs:147`) |
-| `{_installationTopic}` | From registration accepted payload (`acceptedPayload.InstallationTopic`) |
-| `{_serviceProviderIdentifier}` | From config or environment variable `SERVICE_PROVIDER_IDENTIFIER` |
-| `{service}/{contract}` | From `ServiceProviderDefinition.GetServiceContract()` |
-| `{type}` | One of: `di`, `ai`, `do`, `ao` |
+| Variable | Source | Description |
+|----------|--------|-------------|
+| `{secret}` | Configuration parameter | Authentication secret provided during client configuration |
+| `{installationTopic}` | Registration response | Received from `ServiceProviderRegistrationAcceptedPayload.InstallationTopic` |
+| `{serviceProviderIdentifier}` | Configuration parameter | Provided in `MqttConnectionData.ServiceProviderIdentifier` |
+| `{service}/{contract}` | Handler configuration | Defined when registering contract handlers via `WithContractHandler` |
+
+---
+
+## Topic Phases
+
+### Registration Phase
+Topics used during initial service provider registration with the mesh:
+- Subscribe to acceptance/denial topics with secret
+- Publish registration request
+- Receive operational MQTT credentials
+
+### Setup Phase (Optional)
+Topics used for service provider configuration schema and selection:
+- Publish setup schema
+- Subscribe to setup selection
+- Wait for configuration from mesh
+
+### Operational Phase
+Topics used for normal operation after successful registration:
+- Publish service provider declaration
+- Publish health status (with Last Will)
+- Subscribe to contract-specific topics
+- Handle incoming messages via registered handlers
