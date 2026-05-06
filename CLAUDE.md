@@ -1,4 +1,4 @@
-> **Cross-repo work**: this repo participates in a system of 16 repos.
+> **Cross-repo work**: this repo is part of the VION platform.
 > Architecture state, decisions, and cross-repo specs live in [`../architecture`](https://github.com/VION-IoT/architecture).
 > Clone it: `git clone git@github.com:VION-IoT/architecture.git ../architecture`
 > Before planning a feature with scope ≥ 2 repos, read the relevant `architecture/systems/*.md`
