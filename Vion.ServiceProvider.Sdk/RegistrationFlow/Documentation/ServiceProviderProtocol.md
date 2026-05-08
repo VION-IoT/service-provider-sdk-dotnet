@@ -136,7 +136,7 @@ After connecting operationally, publish a declaration describing the services an
 
 | Field | Value |
 |-------|-------|
-| Topic | `{installationTopic}/{serviceProviderIdentifier}/serviceProvider/declaration` |
+| Topic | `{installationTopic}/{serviceProviderIdentifier}/system/serviceProvider/declaration` |
 | Payload | JSON (see below) |
 | QoS | 0 |
 | Retain | yes |
@@ -193,8 +193,8 @@ All messages on the operational broker follow these conventions:
 | Convention | Detail |
 |------------|--------|
 | Protocol version | MQTT 5.0 required |
-| User property: `Schema` | Payload type name (e.g., `DiStatePayload`, `SetDoPayload`) |
-| User property: `PublishedAt` | ISO 8601 UTC timestamp |
+| User property `schema` | Payload type name (e.g., `DiStatePayload`, `SetDoPayload`) |
+| User property `published_at` | ISO 8601 UTC timestamp |
 | Content-Type | `application/x-flatbuffer`, `application/json`, or `application/octet-stream` |
 
 ## Service-Specific Messaging

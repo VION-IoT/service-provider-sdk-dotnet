@@ -281,7 +281,7 @@ stateDiagram-v2
 
 1. **SerializingDeclaration**: Serialize the `ServiceProviderDeclarationPayload` to JSON.
 
-2. **PublishingToDeclarationTopic**: Publish to `{installationTopic}/{serviceProviderIdentifier}/serviceProvider/declaration` as retained JSON with:
+2. **PublishingToDeclarationTopic**: Publish to `{installationTopic}/{serviceProviderIdentifier}/system/serviceProvider/declaration` as retained JSON with:
    - Content-Type: `application/json`
    - QoS: 0
    - Retain: true
@@ -353,8 +353,8 @@ stateDiagram-v2
 - Handlers are matched using substring matching (`topic.Contains(topicPartToMatch)`), so wildcards in subscriptions are matched against exact incoming topics
 - Multiple handlers can match the same message (they execute sequentially)
 - All published messages include:
-  - User property `PublishedAt`: ISO 8601 UTC timestamp
-  - User property `Schema`: Payload type name
+  - User property `published_at`: ISO 8601 UTC timestamp
+  - User property `schema`: Payload type name
   - Content-Type: `application/x-flatbuffer`, `application/json`, or `application/octet-stream`
 
 ---
@@ -496,7 +496,7 @@ If the previous `StartAsync()` call was in the middle of registration or setup s
 ### Declaration Topics
 | Topic | Direction | QoS | Retain | Content |
 |-------|-----------|-----|--------|---------|
-| `{installationTopic}/{serviceProviderIdentifier}/serviceProvider/declaration` | Provider → Runtime | 0 | Yes | JSON declaration |
+| `{installationTopic}/{serviceProviderIdentifier}/system/serviceProvider/declaration` | Provider → Runtime | 0 | Yes | JSON declaration |
 
 ### Health Topics
 | Topic | Direction | QoS | Retain | Content |
