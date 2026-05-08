@@ -128,7 +128,7 @@ stateDiagram-v2
         - Connect with serviceProviderIdentifier as clientId
         - Subscribe: system/.../accepted/{secret}
         - Subscribe: system/.../denied/{secret}
-        - Publish: system/.../request/{serviceProviderIdentifier}/{secret}
+        - Publish: system/.../request/{secret} (retained, payload carries serviceProviderIdentifier)
         - Retry every 30 seconds until accepted
     end note
     
@@ -174,7 +174,7 @@ stateDiagram-v2
    - `system/serviceProvider/registration/accepted/{secret}`
    - `system/serviceProvider/registration/denied/{secret}`
 
-3. **PublishingRegistration**: Publish the registration request to `system/serviceProvider/registration/request/{serviceProviderIdentifier}/{secret}` with QoS 0, no payload.
+3. **PublishingRegistration**: Publish the registration request to `system/serviceProvider/registration/request/{secret}` with QoS 0, retained, content-type `application/json`, payload `ServiceProviderRegistrationRequestPayload` carrying the `serviceProviderIdentifier` (mesh reads the identifier from the payload, not the topic).
 
 4. **WaitingForAcceptance**: Wait for a registration response. If no response is received within 30 seconds, republish the registration request. This loop continues until acceptance is received or the flow is cancelled.
 
@@ -483,7 +483,7 @@ If the previous `StartAsync()` call was in the middle of registration or setup s
 ### Registration Topics
 | Topic | Direction | QoS | Retain | Content |
 |-------|-----------|-----|--------|---------|
-| `system/serviceProvider/registration/request/{serviceProviderIdentifier}/{secret}` | Provider → Runtime | 0 | No | Empty |
+| `system/serviceProvider/registration/request/{secret}` | Provider → Runtime | 0 | Yes | JSON `ServiceProviderRegistrationRequestPayload` (carries `serviceProviderIdentifier`) |
 | `system/serviceProvider/registration/accepted/{secret}` | Runtime → Provider | 0 | No | JSON credentials |
 | `system/serviceProvider/registration/denied/{secret}` | Runtime → Provider | 0 | No | JSON denial reason |
 

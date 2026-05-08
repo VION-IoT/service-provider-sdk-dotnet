@@ -59,12 +59,22 @@ Connect to the registration broker and publish a message:
 
 | Field | Value |
 |-------|-------|
-| Topic | `system/serviceProvider/registration/request/{serviceProviderIdentifier}/{secret}` |
-| Payload | Empty — the serviceProviderIdentifier and secret are encoded in the topic |
+| Topic | `system/serviceProvider/registration/request/{secret}` |
+| Payload | JSON `ServiceProviderRegistrationRequestPayload` carrying the `serviceProviderIdentifier` |
 | QoS | 0 |
-| Retain | no |
+| Retain | yes |
+| Content-Type | `application/json` |
+| User property `schema` | `ServiceProviderRegistrationRequestPayload` |
 
-The `serviceProviderIdentifier` is a human-readable identifier for this provider instance (for example, `hal-sim`, `codesys-bridge-01`). It must be unique within the gateway (not globally unique — different gateways may have providers with the same identifier).
+The `serviceProviderIdentifier` is a human-readable identifier for this provider instance (for example, `hal-sim`, `codesys-bridge-01`). It must be unique within the gateway (not globally unique — different gateways may have providers with the same identifier). It travels in the **payload**, not the topic — mesh subscribes to `system/serviceProvider/registration/request/+` (a single wildcard segment) and reads the identifier from the JSON. Publishing the request retained means a service provider that comes online before mesh is up still gets picked up once mesh subscribes.
+
+Example payload:
+
+```json
+{
+  "serviceProviderIdentifier": "hal-sim"
+}
+```
 
 ### Subscribe to the Response
 
