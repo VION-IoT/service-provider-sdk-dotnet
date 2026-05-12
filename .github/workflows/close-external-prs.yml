@@ -1,0 +1,17 @@
+name: Close external PRs
+# Auto-closes PRs opened from forks. Internal PRs (same-repo branches,
+# dependabot[bot], github-actions[bot]) are not affected — the filter
+# in the shared workflow checks head.repo.full_name != github.repository.
+#
+# Logic lives in VION-IoT/shared-workflows. See that repo for the
+# message template and version-pinning policy.
+
+on:
+  pull_request_target:
+    types: [opened]
+
+jobs:
+  close:
+    uses: VION-IoT/shared-workflows/.github/workflows/close-external-prs.yml@v1
+    permissions:
+      pull-requests: write
