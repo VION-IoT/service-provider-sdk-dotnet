@@ -1,4 +1,10 @@
 name: Pack & Publish
+# Builds and packs the Vion.ServiceProvider.Sdk on every push to main, pushes
+# intermediate packages to the VION private feed, and on a vX.Y.Z tag push
+# also publishes to nuget.org via Trusted Publishing (OIDC).
+#
+# Pipeline logic lives in VION-IoT/shared-workflows. See that repo for the
+# input contract and version-pinning policy.
 
 on:
   push:
@@ -8,80 +14,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
-env:
-  PRIVATE_FEED_URL: 'https://pkgs.dev.azure.com/ecocoachsmarthome/Ecocoach/_packaging/ecocoach.csharplogicsystem/nuget/v3/index.json'
+permissions:
+  contents: read
+  id-token: write   # required for nuget.org Trusted Publishing (OIDC)
 
 jobs:
-  pack:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write   # required for nuget.org Trusted Publishing (OIDC)
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Determine version
-        id: version
-        run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
-            echo "is_release=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "version=0.0.0-ci.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
-            echo "is_release=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Configure private feed
-        run: |
-          dotnet nuget add source "$PRIVATE_FEED_URL" \
-            --name PrivateFeed \
-            --username AzureDevOps \
-            --password "${{ secrets.AZURE_DEVOPS_PAT }}" \
-            --store-password-in-clear-text
-
-      - name: Build
-        run: dotnet build Vion.ServiceProvider.Sdk.slnx -c Release -p:Version=${{ steps.version.outputs.version }}
-
-      - name: Pack
-        run: >
-          dotnet pack Vion.ServiceProvider.Sdk.slnx -c Release --no-build
-          -p:Version=${{ steps.version.outputs.version }}
-          -o ./artifacts
-
-      - name: Push to private feed
-        if: github.event_name != 'pull_request'
-        run: >
-          dotnet nuget push ./artifacts/*.nupkg
-          --source PrivateFeed
-          --api-key ${{ secrets.AZURE_DEVOPS_PAT }}
-          --skip-duplicate
-
-      # Trusted Publishing: request a short-lived API key via OIDC.
-      # Temp key is valid for 1 hour, so do this immediately before push.
-      # NOTE: `user:` must be the INDIVIDUAL nuget.org username (a member of
-      # the org that owns the Trusted Publishing policy), not the org name
-      # itself. The NuGet docs' example `contoso-bot` hints at this.
-      - name: NuGet login (OIDC)
-        if: steps.version.outputs.is_release == 'true'
-        uses: NuGet/login@v1
-        id: nuget-login
-        with:
-          user: ${{ secrets.NUGET_USER }}
-
-      - name: Push to nuget.org
-        if: steps.version.outputs.is_release == 'true'
-        run: >
-          dotnet nuget push ./artifacts/*.nupkg
-          --source https://api.nuget.org/v3/index.json
-          --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
-          --skip-duplicate
-
-      - name: Upload package artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: nupkg
-          path: ./artifacts/*.*nupkg
+  publish:
+    uses: VION-IoT/shared-workflows/.github/workflows/publish-nuget.yml@v1
+    with:
+      solution: Vion.ServiceProvider.Sdk.slnx
+    secrets: inherit
