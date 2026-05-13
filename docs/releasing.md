@@ -33,7 +33,7 @@ gh release create v0.2.0-preview.1 --target main --prerelease --generate-notes \
 
 1. Builds and packs with `Version` taken from the tag (strips the `v` prefix).
 2. Pushes `.nupkg` + `.snupkg` to the private Azure DevOps feed.
-3. Publishes to nuget.org using [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing) (short-lived OIDC token — no API key stored).
+3. Publishes to nuget.org using a long-lived API key (`NUGET_API_KEY`).
 
 Verify the result under the [VION-IoT profile on nuget.org](https://www.nuget.org/profiles/VION-IoT).
 
@@ -46,5 +46,6 @@ Once a version is published to nuget.org, the version ID is permanent. You can *
 One-time setup per repo. Flag this if you fork or rotate credentials:
 
 - GitHub secret `AZURE_DEVOPS_PAT` — PAT with `Packaging: Read & write` on the Azure DevOps feed.
-- GitHub secret `NUGET_USER` — **individual** nuget.org username that is a member of the org owning the Trusted Publishing policy. Not the org name. (Docs use `contoso-bot` as the example — this matters; setting it to the org name produces `No matching trust policy owned by user 'X' was found`.)
-- Trusted Publishing policy on nuget.org: Package Owner `VION-IoT`, Repository Owner `VION-IoT`, Repository `service-provider-sdk-dotnet`, Workflow File `publish.yml`. See [NuGet's Trusted Publishing docs](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing) for the UI walkthrough.
+- GitHub secret `NUGET_API_KEY` — nuget.org API key scoped to push `Vion.ServiceProvider.Sdk`. Rotate per nuget.org's policy (max 365 days).
+
+Trusted Publishing was the prior approach but does not currently work with reusable workflows: the OIDC `job_workflow_ref` claim points at the shared-workflows repo, not this repo, and nuget.org rejects the token exchange. See [community discussion #179952](https://github.com/orgs/community/discussions/179952). Re-evaluate when nuget.org adds reusable-workflow support.

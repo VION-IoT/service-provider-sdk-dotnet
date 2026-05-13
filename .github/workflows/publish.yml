@@ -1,7 +1,7 @@
 name: Pack & Publish
 # Builds and packs the Vion.ServiceProvider.Sdk on every push to main, pushes
 # intermediate packages to the VION private feed, and on a vX.Y.Z tag push
-# also publishes to nuget.org via Trusted Publishing (OIDC).
+# also publishes to nuget.org using NUGET_API_KEY.
 #
 # Pipeline logic lives in VION-IoT/shared-workflows. See that repo for the
 # input contract and version-pinning policy.
@@ -16,7 +16,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write   # required for nuget.org Trusted Publishing (OIDC)
 
 jobs:
   publish:
