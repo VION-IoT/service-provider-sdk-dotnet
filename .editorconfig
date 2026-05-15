@@ -2,6 +2,7 @@ root = true
 
 # All files
 [*]
+end_of_line = lf
 charset = utf-8
 insert_final_newline = true
 trim_trailing_whitespace = true
@@ -25,3 +26,7 @@ dotnet_diagnostic.CS1591.severity = none
 # ReSharper settings for .g.cs files
 resharper_missing_xml_doc_highlighting = none
 resharper_missing_xml_doc_comment_highlighting = none
+
+# Windows batch scripts stay CRLF (matches .gitattributes; cmd.exe can mishandle LF)
+[*.{cmd,bat}]
+end_of_line = crlf
