@@ -55,6 +55,13 @@ nunit-*.xml
 
 .vs/
 _ReSharper*/
+
+# JetBrains Rider / IntelliJ workspace metadata
+.idea/
+
+# ReSharper / Rider per-user settings overlay (the shared *.DotSettings file IS tracked)
+*.DotSettings.user
+
 # Cross-repo planning lives in the architecture repo (decision 0011).
 # This repo never tracks Claude tooling state or planning artifacts.
 .claude/
