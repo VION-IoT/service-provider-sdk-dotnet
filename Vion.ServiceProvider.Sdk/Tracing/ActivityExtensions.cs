@@ -12,7 +12,7 @@ namespace Vion.ServiceProvider.Sdk.Tracing
         extension(MqttApplicationMessageBuilder builder)
         {
             /// <summary>
-            /// Adds the current activity context to the MQTT application message for distributed tracing.
+            ///     Adds the current activity context to the MQTT application message for distributed tracing.
             /// </summary>
             /// <returns>The MQTT application message builder with the activity context added.</returns>
             public MqttApplicationMessageBuilder WithActivity()
@@ -30,7 +30,7 @@ namespace Vion.ServiceProvider.Sdk.Tracing
         extension(MqttApplicationMessageReceivedEventArgs eventArgs)
         {
             /// <summary>
-            /// Gets the parent activity context from the MQTT application message.
+            ///     Gets the parent activity context from the MQTT application message.
             /// </summary>
             /// <returns>The parent activity context if available; otherwise, null.</returns>
             public ActivityContext GetParentContext()
@@ -41,7 +41,7 @@ namespace Vion.ServiceProvider.Sdk.Tracing
             }
 
             /// <summary>
-            /// Starts a new activity with the specified name and kind, using the parent context from the MQTT application message.
+            ///     Starts a new activity with the specified name and kind, using the parent context from the MQTT application message.
             /// </summary>
             /// <param name="name">The name of the activity.</param>
             /// <param name="kind">The kind of the activity.</param>
@@ -58,7 +58,7 @@ namespace Vion.ServiceProvider.Sdk.Tracing
         extension(Activity activity)
         {
             /// <summary>
-            /// Sets the MQTT topic for the current activity.
+            ///     Sets the MQTT topic for the current activity.
             /// </summary>
             /// <param name="topic">The MQTT topic.</param>
             public void SetMqttTopic(string topic)
@@ -67,7 +67,7 @@ namespace Vion.ServiceProvider.Sdk.Tracing
             }
 
             /// <summary>
-            /// Marks the current activity as failed due to an exception.
+            ///     Marks the current activity as failed due to an exception.
             /// </summary>
             /// <param name="exception">The exception that caused the failure.</param>
             public void MarkFailed(Exception exception)
@@ -77,7 +77,7 @@ namespace Vion.ServiceProvider.Sdk.Tracing
             }
 
             /// <summary>
-            /// Marks the current activity as failed with a custom description.
+            ///     Marks the current activity as failed with a custom description.
             /// </summary>
             /// <param name="description">The description of the failure.</param>
             public void MarkFailed(string description)
@@ -86,13 +86,13 @@ namespace Vion.ServiceProvider.Sdk.Tracing
             }
 
             /// <summary>
-            /// Marks the current activity and all its parent activities as explicitly trace-enabled.
+            ///     Marks the current activity and all its parent activities as explicitly trace-enabled.
             /// </summary>
             /// <remarks>
-            /// By default, tracing is enabled for all activities, but the collector may filter out certain spans,
-            /// such as those where <c>mqtt.topic</c> matches <c>.*property/state.*</c>.
-            /// Invoking this method sets the <c>trace.enabled</c> tag to <c>true</c> on the activity and its
-            /// parent chain, ensuring these spans are not excluded by such filters.
+            ///     By default, tracing is enabled for all activities, but the collector may filter out certain spans,
+            ///     such as those where <c>mqtt.topic</c> matches <c>.*property/state.*</c>.
+            ///     Invoking this method sets the <c>trace.enabled</c> tag to <c>true</c> on the activity and its
+            ///     parent chain, ensuring these spans are not excluded by such filters.
             /// </remarks>
             public void EnableTracing()
             {
@@ -106,7 +106,7 @@ namespace Vion.ServiceProvider.Sdk.Tracing
             }
 
             /// <summary>
-            /// Sets the installation topic for the current activity.
+            ///     Sets the installation topic for the current activity.
             /// </summary>
             /// <param name="installationTopic">The installation topic.</param>
             public void SetInstallationTopic(string installationTopic)
@@ -115,7 +115,7 @@ namespace Vion.ServiceProvider.Sdk.Tracing
             }
 
             /// <summary>
-            /// Sets the service ID for the current activity.
+            ///     Sets the service ID for the current activity.
             /// </summary>
             /// <param name="id">The service ID.</param>
             public void SetServiceId(string id)
@@ -124,7 +124,7 @@ namespace Vion.ServiceProvider.Sdk.Tracing
             }
 
             /// <summary>
-            /// Sets the property identifier for the current activity.
+            ///     Sets the property identifier for the current activity.
             /// </summary>
             /// <param name="identifier">The property identifier.</param>
             public void SetPropertyIdentifier(string identifier)
@@ -133,7 +133,7 @@ namespace Vion.ServiceProvider.Sdk.Tracing
             }
 
             /// <summary>
-            /// Sets the measuring point identifier for the current activity.
+            ///     Sets the measuring point identifier for the current activity.
             /// </summary>
             /// <param name="identifier">The measuring point identifier.</param>
             public void SetMeasuringPointIdentifier(string identifier)

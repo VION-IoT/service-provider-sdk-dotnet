@@ -72,9 +72,9 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="mqttClientFactory">The factory for creating MQTT clients.</param>
         /// <param name="logger">The logger instance.</param>
         public ServiceProviderClient(ServiceProviderClientConfiguration configuration, MqttClientFactory mqttClientFactory, ILogger logger) : this(configuration,
-                                                                                                                                                   mqttClientFactory,
-                                                                                                                                                   logger,
-                                                                                                                                                   new MessageDispatcher(logger))
+            mqttClientFactory,
+            logger,
+            new MessageDispatcher(logger))
         {
         }
 
@@ -501,8 +501,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                           .WithWillCorrelationData(Guid.NewGuid().ToByteArray())
                           .WithWillContentType(MessageMimeTypes.FlatBuffer)
                           .WithWillPayload(FlatBufferPayloadFactory.CreateComponentHealthStatusPayload(_operationalData.ConnectionData.ServiceProviderIdentifier,
-                                                                                                       Vion.Contracts.FlatBuffers.System.Health.ConnectionStatus.Offline,
-                                                                                                       Vion.Contracts.FlatBuffers.System.Health.HealthStatus.Unknown,
+                                                                                                       Contracts.FlatBuffers.System.Health.ConnectionStatus.Offline,
+                                                                                                       Contracts.FlatBuffers.System.Health.HealthStatus.Unknown,
                                                                                                        null))
                           .WithWillQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
                           .WithWillRetain()

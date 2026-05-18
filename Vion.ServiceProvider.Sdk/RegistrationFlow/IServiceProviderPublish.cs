@@ -5,12 +5,12 @@ using MQTTnet;
 namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 {
     /// <summary>
-    /// Defines the contract for publishing messages to MQTT topics.
+    ///     Defines the contract for publishing messages to MQTT topics.
     /// </summary>
     public interface IServiceProviderPublish
     {
         /// <summary>
-        /// Publishes a message to the specified MQTT topic with schema information.
+        ///     Publishes a message to the specified MQTT topic with schema information.
         /// </summary>
         /// <param name="topic">The MQTT topic to publish to.</param>
         /// <param name="schema">The schema name of the payload.</param>
@@ -27,7 +27,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                    bool retain = true);
 
         /// <summary>
-        /// Publishes an MQTT application message.
+        ///     Publishes an MQTT application message.
         /// </summary>
         /// <param name="msg">The MQTT application message to publish.</param>
         /// <param name="cancellationToken">Cancellation token for the operation.</param>
