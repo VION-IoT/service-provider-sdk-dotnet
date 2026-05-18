@@ -1,7 +1,6 @@
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
-using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
@@ -28,11 +27,13 @@ using HealthStatus = Vion.Contracts.Events.MeshToCloud.HealthStatus;
 namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 {
     /// <summary>
-    /// Implementation of the service provider client that handles MQTT communication, registration, and message publishing.
+    ///     Implementation of the service provider client that handles MQTT communication, registration, and message publishing.
     /// </summary>
     public class ServiceProviderClient : IServiceProviderClient, IServiceProviderClientHandler, IAsyncDisposable
     {
         private readonly ServiceProviderClientConfiguration _configuration;
+
+        private readonly IMessageDispatcher _dispatcher;
 
         private readonly ILogger _logger;
 
@@ -65,16 +66,24 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         private volatile string? _topicComponentHealthState;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="ServiceProviderClient" /> class.
+        ///     Initializes a new instance of the <see cref="ServiceProviderClient" /> class.
         /// </summary>
         /// <param name="configuration">The service provider client configuration.</param>
         /// <param name="mqttClientFactory">The factory for creating MQTT clients.</param>
         /// <param name="logger">The logger instance.</param>
-        public ServiceProviderClient(ServiceProviderClientConfiguration configuration, MqttClientFactory mqttClientFactory, ILogger logger)
+        public ServiceProviderClient(ServiceProviderClientConfiguration configuration, MqttClientFactory mqttClientFactory, ILogger logger) : this(configuration,
+                                                                                                                                                   mqttClientFactory,
+                                                                                                                                                   logger,
+                                                                                                                                                   new MessageDispatcher(logger))
+        {
+        }
+
+        internal ServiceProviderClient(ServiceProviderClientConfiguration configuration, MqttClientFactory mqttClientFactory, ILogger logger, IMessageDispatcher dispatcher)
         {
             _mqttClientFactory = mqttClientFactory;
             _logger = logger;
             _configuration = configuration;
+            _dispatcher = dispatcher;
             _operationalClient = _mqttClientFactory.CreateMqttClient();
             _operationalClient.ApplicationMessageReceivedAsync += OnApplicationMessageReceivedAsync;
             _operationalClient.DisconnectedAsync += OnDisconnectedAsync;
@@ -180,7 +189,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         }
 
         /// <summary>
-        /// Publishes an MQTT application message to the operational MQTT broker.
+        ///     Publishes an MQTT application message to the operational MQTT broker.
         /// </summary>
         /// <param name="msg">The MQTT application message to publish.</param>
         /// <param name="cancellationToken">The cancellation token for the operation.</param>
@@ -423,14 +432,6 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                      Func<IServiceProviderClientHandler, MqttApplicationMessageReceivedEventArgs, Task?> handler,
                                      ConcurrentBag<HandlerConfiguration> handlers)
         {
-            if (topic.Contains("+") || topic.Contains("#"))
-            {
-                // use something like MQTTnet.Extensions.TopicTemplate.MqttTopicTemplate to match generic topics with wildcards, e.g. for contract handlers
-                // and update the OnApplicationMessageReceivedAsync to match incoming message topics to the registered handlers using the topic template matching
-                throw new ValidationException("Invalid topic for handler, no wildcards allowed");
-            }
-
-            // subscribe contract topic
             handlers.Add(new HandlerConfiguration(topic, handler, false, topic));
         }
 
@@ -548,30 +549,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
             try
             {
-                // dispatch to user handlers
-                var handlers = _handlers.Where(h => MqttTopicFilterComparer.Compare(arg.ApplicationMessage.Topic, h.TopicFilter) == MqttTopicFilterCompareResult.IsMatch).ToList();
-
-                if (handlers.Any())
-                {
-                    foreach (var handler in handlers)
-                    {
-                        try
-                        {
-                            await handler.Handler.Invoke(this, arg);
-                        }
-                        catch (Exception e)
-                        {
-                            _logger.LogError(e,
-                                             "Error occurred while handling message on topic '{Topic}' in handler registered for '{TopicPart}'",
-                                             arg.ApplicationMessage.Topic,
-                                             handler.TopicPartToMatch);
-                        }
-                    }
-
-                    return;
-                }
-
-                await (ApplicationMessageReceivedAsync?.Invoke(arg) ?? Task.CompletedTask);
+                await _dispatcher.DispatchAsync(arg, this, _handlers, ApplicationMessageReceivedAsync);
             }
             catch (Exception ex)
             {

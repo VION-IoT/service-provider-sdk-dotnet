@@ -17,4 +17,10 @@
         <PackageReference Include="MQTTnet" Version="5.1.0.1559"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <InternalsVisibleTo Include="Vion.ServiceProvider.Sdk.Test"/>
+        <!-- Moq's Castle.Core dynamic proxy needs this to mock internal interfaces. -->
+        <InternalsVisibleTo Include="DynamicProxyGenAssembly2"/>
+    </ItemGroup>
+
 </Project>

@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="Vion.ServiceProvider.Sdk/Vion.ServiceProvider.Sdk.csproj" Id="c3417b26-bce8-41e1-84aa-ed2668b8830a" />
+  <Project Path="Vion.ServiceProvider.Sdk.Test/Vion.ServiceProvider.Sdk.Test.csproj" />
 </Solution>
