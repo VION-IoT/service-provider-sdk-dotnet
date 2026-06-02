@@ -46,7 +46,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="healthStatus">The health status of the service provider.</param>
         /// <param name="since">The timestamp since when this status has been active.</param>
         /// <param name="client">The service provider client handler.</param>
-        /// <param name="correlationData">Optional correlation data for the message.</param>
+        /// <param name="correlationId">The correlation identifier for tracking the message flow.</param>
         /// <param name="retain">Whether the message should be retained by the broker.</param>
         /// <param name="cancellationToken">Cancellation token for the operation.</param>
         /// <returns>A task representing the asynchronous operation.</returns>
@@ -55,7 +55,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                                HealthStatus healthStatus,
                                                                DateTime since,
                                                                IServiceProviderClientHandler client,
-                                                               byte[]? correlationData,
+                                                               Guid correlationId,
                                                                bool retain,
                                                                CancellationToken cancellationToken);
 
