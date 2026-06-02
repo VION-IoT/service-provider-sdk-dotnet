@@ -76,9 +76,9 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="mqttClientFactory">The factory for creating MQTT clients.</param>
         /// <param name="logger">The logger instance.</param>
         public ServiceProviderClient(ServiceProviderClientConfiguration configuration, MqttClientFactory mqttClientFactory, ILogger logger) : this(configuration,
-                                                                                                                                                   mqttClientFactory,
-                                                                                                                                                   logger,
-                                                                                                                                                   new MessageDispatcher(logger))
+            mqttClientFactory,
+            logger,
+            new MessageDispatcher(logger))
         {
         }
 
@@ -478,7 +478,6 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                 var healthStatus = _healthStateProviderFunc?.Invoke() ?? HealthStatus.Healthy;
                                 var responseTopic = message.ResponseTopic;
 
-                                // todo is it enough to send it only to the response topic? do we need to also publish it to the general health state topic for monitoring purposes? (currently doing both)
                                 if (!string.IsNullOrEmpty(responseTopic))
                                 {
                                     await PublishHealthStatusAsync(responseTopic,
@@ -494,15 +493,6 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                 {
                                     LogHealthGetWithoutResponseTopic(correlationId, topicGetComponentHealth);
                                 }
-
-                                await PublishHealthStatusAsync(_topicComponentHealthState!,
-                                                               ConnectionStatus.Online,
-                                                               healthStatus,
-                                                               DateTime.UtcNow,
-                                                               this,
-                                                               Guid.NewGuid(),
-                                                               true,
-                                                               cancellationToken);
                             },
                             newHandlers);
 
