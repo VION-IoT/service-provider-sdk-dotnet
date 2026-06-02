@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Immutable;
 using Vion.Contracts.TypeRef;
 using Vion.ServiceProvider.Sdk.Services;
 
@@ -73,9 +74,7 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
         public void ReportWriteOnlyFromTypeSchemaAnnotations()
         {
             // Arrange
-            var schema = new TypeSchema(new PrimitiveTypeRef(PrimitiveKind.String),
-                                        new TypeAnnotations { WriteOnly = true },
-                                        System.Collections.Immutable.ImmutableDictionary<string, TypeAnnotations>.Empty);
+            var schema = new TypeSchema(new PrimitiveTypeRef(PrimitiveKind.String), new TypeAnnotations { WriteOnly = true }, ImmutableDictionary<string, TypeAnnotations>.Empty);
 
             // Act
             var sut = new ServiceField<TestService>(Guid.NewGuid().ToString(), ServiceFieldKind.Property, schema, _ => null, (service, _) => service);
@@ -100,9 +99,7 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
         public void ReportNotWritableWhenReadOnly()
         {
             // Arrange
-            var schema = new TypeSchema(new PrimitiveTypeRef(PrimitiveKind.String),
-                                        new TypeAnnotations { ReadOnly = true },
-                                        System.Collections.Immutable.ImmutableDictionary<string, TypeAnnotations>.Empty);
+            var schema = new TypeSchema(new PrimitiveTypeRef(PrimitiveKind.String), new TypeAnnotations { ReadOnly = true }, ImmutableDictionary<string, TypeAnnotations>.Empty);
 
             // Act
             var sut = new ServiceField<TestService>(Guid.NewGuid().ToString(), ServiceFieldKind.Property, schema, _ => null, (service, _) => service);

@@ -55,7 +55,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         private MqttClientSubscribeOptions? _currentClientSubscriptionOptions;
 
-        private ConcurrentBag<HandlerConfiguration> _handlers = new(); // Remove readonly
+        private ConcurrentBag<HandlerConfiguration> _handlers = [];
 
         private volatile Func<HealthStatus>? _healthStateProviderFunc;
 
@@ -63,14 +63,16 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         [SuppressMessage("Usage",
                          "CA2213:Disposable fields should be disposed",
-                         Justification = "Disposed via SafeCancelAndDispose in DisposeAsync, which cancels then disposes through a ref parameter — CA2213 cannot track disposal across the helper.")]
+                         Justification =
+                             "Disposed via SafeCancelAndDispose in DisposeAsync, which cancels then disposes through a ref parameter — CA2213 cannot track disposal across the helper.")]
         private CancellationTokenSource? _registrationCts;
 
         private string? _secret;
 
         [SuppressMessage("Usage",
                          "CA2213:Disposable fields should be disposed",
-                         Justification = "Disposed via SafeCancelAndDispose in DisposeAsync, which cancels then disposes through a ref parameter — CA2213 cannot track disposal across the helper.")]
+                         Justification =
+                             "Disposed via SafeCancelAndDispose in DisposeAsync, which cancels then disposes through a ref parameter — CA2213 cannot track disposal across the helper.")]
         private CancellationTokenSource? _setupSchemaCts;
 
         private int _shutdownCleanupCompleted;
@@ -1335,25 +1337,27 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         private void SafeCancelAndDispose(ref CancellationTokenSource? cts, string name)
         {
             var oldCts = Interlocked.Exchange(ref cts, null);
-            if (oldCts != null)
+            if (oldCts == null)
             {
-                try
-                {
-                    oldCts.Cancel();
-                }
-                catch (Exception e)
-                {
-                    LogCancellationTokenSourceCancelFailed(e, name);
-                }
+                return;
+            }
 
-                try
-                {
-                    oldCts.Dispose();
-                }
-                catch (Exception e)
-                {
-                    LogCancellationTokenSourceDisposeFailed(e, name);
-                }
+            try
+            {
+                oldCts.Cancel();
+            }
+            catch (Exception e)
+            {
+                LogCancellationTokenSourceCancelFailed(e, name);
+            }
+
+            try
+            {
+                oldCts.Dispose();
+            }
+            catch (Exception e)
+            {
+                LogCancellationTokenSourceDisposeFailed(e, name);
             }
         }
 
