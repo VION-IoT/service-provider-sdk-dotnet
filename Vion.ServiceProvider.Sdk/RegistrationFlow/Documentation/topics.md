@@ -14,26 +14,26 @@ The SDK implements MQTT communication through:
 
 ## Subscribed Topics
 
-| Topic Pattern                                                                    | Phase        | File                                           | Method/Line                   | Description                                       |
-|----------------------------------------------------------------------------------|--------------|------------------------------------------------|-------------------------------|---------------------------------------------------|
-| `{Topics.ServiceProviderRegistrationAccepted}/{secret}`                          | Registration | `ServiceProviderClient.cs`                     | `RegisterAsync` (~705)        | Accepts registration with operational credentials |
-| `{Topics.ServiceProviderRegistrationDenied}/{secret}`                            | Registration | `ServiceProviderClient.cs`                     | `RegisterAsync` (~706)        | Denies registration request                       |
-| `{installationTopic}{serviceProviderIdentifier}/serviceProvider/setup/selection` | Setup        | `ServiceProviderClient.cs`                     | `SendSetupSchemaAsync` (~525) | Receives setup selection from mesh                |
-| `{installationTopic}{serviceProviderIdentifier}/{service}/{contract}/#`          | Operational  | `ServiceProviderClientConfigurationBuilder.cs` | `WithContractHandler` (~335)  | Contract-specific message handlers                |
-| Custom topics registered via `WithHandler`                                       | Operational  | `ServiceProviderClientConfigurationBuilder.cs` | `WithHandler` (~257)          | User-defined message handlers                     |
+| Topic Pattern                                                                    | Phase        | File                                           | Method                 | Description                                       |
+|----------------------------------------------------------------------------------|--------------|------------------------------------------------|------------------------|---------------------------------------------------|
+| `{Topics.ServiceProviderRegistrationAccepted}/{secret}`                          | Registration | `ServiceProviderClient.cs`                     | `RegisterAsync`        | Accepts registration with operational credentials |
+| `{Topics.ServiceProviderRegistrationDenied}/{secret}`                            | Registration | `ServiceProviderClient.cs`                     | `RegisterAsync`        | Denies registration request                       |
+| `{installationTopic}{serviceProviderIdentifier}/serviceProvider/setup/selection` | Setup        | `ServiceProviderClient.cs`                     | `SendSetupSchemaAsync` | Receives setup selection from mesh                |
+| `{installationTopic}{serviceProviderIdentifier}/{service}/{contract}/#`          | Operational  | `ServiceProviderClientConfigurationBuilder.cs` | `WithContractHandler`  | Contract-specific message handlers                |
+| Custom topics registered via `WithHandler`                                       | Operational  | `ServiceProviderClientConfigurationBuilder.cs` | `WithHandler`          | User-defined message handlers                     |
 
 ---
 
 ## Published Topics
 
-| Topic Pattern                                                                        | Phase        | File                       | Method/Line                                              | Description                                     |
-|--------------------------------------------------------------------------------------|--------------|----------------------------|----------------------------------------------------------|-------------------------------------------------|
-| `{Topics.ServiceProviderRegistrationRequest}/{secret}`                               | Registration | `ServiceProviderClient.cs` | `RegisterAsync` (~758)                                   | Requests registration with mesh broker          |
-| `{installationTopic}{serviceProviderIdentifier}/serviceProvider/setup/schema`        | Setup        | `ServiceProviderClient.cs` | `SendSetupSchemaAsync` (~590)                            | Publishes setup schema for configuration        |
-| `{installationTopic}/{serviceProviderIdentifier}{Topics.ServiceProviderDeclaration}` | Operational  | `ServiceProviderClient.cs` | `SendDeclarationAsync` (~893)                            | Declares service provider capabilities          |
-| `{installationTopic}{serviceProviderIdentifier}{Topics.ComponentHealthState}`        | Operational  | `ServiceProviderClient.cs` | `ConnectOperationalClientAsync` (~400), Last Will (~401) | Health status publication and last will message |
-| Response topic from request                                                          | Operational  | `ServiceProviderClient.cs` | Health handler (~303-315)                                | Health status responses to requests             |
-| Custom topics via `PublishAsync`                                                     | Operational  | `ServiceProviderClient.cs` | `PublishAsync` (~158)                                    | User-defined publications                       |
+| Topic Pattern                                                                        | Phase        | File                       | Method                                          | Description                                     |
+|--------------------------------------------------------------------------------------|--------------|----------------------------|-------------------------------------------------|-------------------------------------------------|
+| `{Topics.ServiceProviderRegistrationRequest}/{secret}`                               | Registration | `ServiceProviderClient.cs` | `RegisterAsync`                                 | Requests registration with mesh broker          |
+| `{installationTopic}{serviceProviderIdentifier}/serviceProvider/setup/schema`        | Setup        | `ServiceProviderClient.cs` | `SendSetupSchemaAsync`                          | Publishes setup schema for configuration        |
+| `{installationTopic}/{serviceProviderIdentifier}{Topics.ServiceProviderDeclaration}` | Operational  | `ServiceProviderClient.cs` | `SendDeclarationAsync`                          | Declares service provider capabilities          |
+| `{installationTopic}{serviceProviderIdentifier}{Topics.ComponentHealthState}`        | Operational  | `ServiceProviderClient.cs` | `ConnectOperationalClientAsync` + Last Will     | Health status publication and last will message |
+| Response topic from request                                                          | Operational  | `ServiceProviderClient.cs` | Health handler (`RegisterAdditionalHandlers`)   | Health status responses to requests             |
+| Custom topics via `PublishMessageAsync` / `PublishResponseAsync`                     | Operational  | `ServiceProviderClient.cs` | `PublishMessageAsync` / `PublishResponseAsync`  | User-defined publications                       |
 
 ---
 

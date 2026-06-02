@@ -352,8 +352,8 @@ stateDiagram-v2
 1. **ListeningForMessages**: Idle state waiting for incoming messages.
 
 2. **Message Processing**: All incoming messages flow through this processing pipeline:
-    - **MatchingTopic**: Check if the incoming message topic matches any registered handler using `topic.Contains(handlerTopicPartToMatch)`. Multiple handlers can match the same
-      topic.
+    - **MatchingTopic**: Check if the incoming message topic matches any registered handler's topic filter using MQTT topic-filter matching
+      (`MqttTopicFilterComparer.Compare`), which honours `+` and `#` wildcards. Multiple handlers can match the same topic.
     - **DispatchingToHandler**: If one or more handlers match, invoke each handler asynchronously in sequence. The handler type (health, contract, custom) determines the specific
       processing logic.
     - **ForwardingToApplicationHandler**: If no handlers match, invoke the `ApplicationMessageReceivedAsync` event to allow application-level handling.
@@ -377,11 +377,13 @@ stateDiagram-v2
 **Notes**:
 
 - All incoming messages go through the same handler matching logic - there are no separate "fast paths" for health or contract messages
-- Handlers are matched using substring matching (`topic.Contains(topicPartToMatch)`), so wildcards in subscriptions are matched against exact incoming topics
+- Handlers are matched using MQTT topic-filter semantics (`MqttTopicFilterComparer.Compare`) against each handler's topic filter, so subscription wildcards (`+`/`#`) match incoming topics per the MQTT spec
+- Incoming messages without a parseable correlation ID violate the wire contract and are logged and dropped (not dispatched)
 - Multiple handlers can match the same message (they execute sequentially)
 - All published messages include:
+    - Correlation Data: a GUID correlation ID, present on every message
     - User property `published_at`: ISO 8601 UTC timestamp
-    - User property `schema`: Payload type name
+    - User property `schema`: Payload type name (required whenever a payload is present)
     - Content-Type: `application/x-flatbuffer`, `application/json`, or `application/octet-stream`
 
 ---
@@ -499,7 +501,7 @@ gracefully, allowing the new flow to proceed without conflicts.
 - **Registration publish failure**: Log warning, retry after 30 seconds
 - **Setup schema publish failure**: Log warning, retry after 1 minute
 - **Health publish failure**: Log warning, continue operation
-- **Declaration publish failure**: Currently commented out, would log warning
+- **Declaration publish failure**: Log warning, continue operation
 - **Connection failure**: Rely on disconnection handler to restart flow
 
 ## MQTT Client Configuration
