@@ -22,10 +22,11 @@ using Vion.ServiceProvider.Sdk.JsonSerializationContexts;
 using Vion.ServiceProvider.Sdk.RegistrationFlow.Extensions;
 using Vion.ServiceProvider.Sdk.Setup;
 using Vion.ServiceProvider.Sdk.SystemControl;
-using Vion.ServiceProvider.Sdk.Tracing;
+using Vion.Telemetry.Instrumentation;
 using static Vion.Contracts.Mqtt.MqttUserProperties;
 using ConnectionStatus = Vion.Contracts.Events.MeshToCloud.ConnectionStatus;
 using HealthStatus = Vion.Contracts.Events.MeshToCloud.HealthStatus;
+using MqttUserProperty = MQTTnet.Packets.MqttUserProperty;
 
 namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 {
@@ -191,7 +192,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                    null,
                                    null);
             LogPublishingMessage(correlationId, topic);
-            return PublishRawAsync(msg, cancellationToken);
+            return PublishRawAsync(_operationalClient, msg, cancellationToken);
         }
 
         /// <inheritdoc />
@@ -217,7 +218,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                    errorCode,
                                    errorMessage);
             LogPublishingMessage(correlationId, topic);
-            return PublishRawAsync(msg, cancellationToken);
+            return PublishRawAsync(_operationalClient, msg, cancellationToken);
         }
 
         /// <inheritdoc />
@@ -230,12 +231,6 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                                             bool retain,
                                                                             CancellationToken cancellationToken)
         {
-            using var activity = ActivitySources.Messaging.StartActivity("PublishHealthStatus", ActivityKind.Producer);
-            activity?.SetMqttTopic(topic);
-            activity?.SetServiceId(client.ServiceProviderIdentifier ?? "unknown");
-            activity?.SetTag("health.status", healthStatus.ToString());
-            activity?.SetTag("connection.status", connectionStatus.ToString());
-
             try
             {
                 correlationData ??= Guid.NewGuid().ToByteArray();
@@ -254,20 +249,12 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                              .WithUserProperty(PublishedAt.Name, Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format)))
                                                              .WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(schema))
                                                              .WithRetainFlag(retain)
-                                                             .WithActivity()
                                                              .Build();
 
-                var result = await PublishRawAsync(msg, cancellationToken);
-                if (!result.IsSuccess)
-                {
-                    activity?.MarkFailed($"Publish health status failed: {result.ReasonCode} - {result.ReasonString}");
-                }
-
-                return result;
+                return await PublishRawAsync(_operationalClient, msg, cancellationToken);
             }
             catch (Exception ex)
             {
-                activity?.MarkFailed(ex);
                 _logger.LogWarning(ex, "Failed publishing {Topic}", topic);
                 return new MqttClientPublishResult(0, MqttClientPublishReasonCode.UnspecifiedError, ex.ToString(), []);
             }
@@ -377,19 +364,21 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 builder.WithUserProperty(ErrorMessage.Name, Encoding.UTF8.GetBytes(errorMessage));
             }
 
-            return builder.WithActivity().Build();
+            return builder.Build();
         }
 
-        private async Task<MqttClientPublishResult> PublishRawAsync(MqttApplicationMessage msg, CancellationToken cancellationToken)
+        private static async Task<MqttClientPublishResult> PublishRawAsync(IMqttClient client, MqttApplicationMessage msg, CancellationToken cancellationToken)
         {
-            using var activity = ActivitySources.Messaging.StartActivity("PublishMessage", ActivityKind.Producer);
-            activity?.SetMqttTopic(msg.Topic);
-            activity?.SetInstallationTopic(_operationalData?.InstallationTopic ?? "unknown");
-            activity?.SetServiceId(_operationalData?.ConnectionData.ServiceProviderIdentifier ?? "unknown");
+            using var activity = MessageActivities.StartMessagePublishActivity(msg.Topic);
+            if (Activity.Current?.Id is { } traceParent)
+            {
+                msg.UserProperties ??= [];
+                msg.UserProperties.Add(new MqttUserProperty(TraceParent.Name, Encoding.UTF8.GetBytes(traceParent)));
+            }
 
             try
             {
-                var result = await _operationalClient.PublishAsync(msg, cancellationToken);
+                var result = await client.PublishAsync(msg, cancellationToken);
                 if (!result.IsSuccess)
                 {
                     activity?.MarkFailed($"Publish failed: {result.ReasonCode} - {result.ReasonString}");
@@ -668,12 +657,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         private async Task OnApplicationMessageReceivedAsync(MqttApplicationMessageReceivedEventArgs arg)
         {
-            using var activity = arg.StartActivity("HandleMessage", ActivityKind.Consumer);
-            activity?.SetInstallationTopic(_operationalData?.InstallationTopic ?? "unknown");
-            activity?.SetServiceId(_operationalData?.ConnectionData.ServiceProviderIdentifier ?? "unknown");
-
             var topic = arg.ApplicationMessage.Topic;
-
+            using var activity = MessageActivities.StartMessageConsumeActivity(topic, arg.ApplicationMessage.GetTraceParent());
             Guid correlationId;
             try
             {
@@ -777,9 +762,6 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             // Handler for incoming selection response
             Task HandleSetupSelectionAsync(MqttApplicationMessageReceivedEventArgs eventArgs)
             {
-                using var activity = eventArgs.StartActivity("HandleSetupSelection", ActivityKind.Consumer);
-                activity?.SetServiceId(serviceProviderIdentifier);
-
                 if (eventArgs.ApplicationMessage.Topic != setupSelectionTopic)
                 {
                     return Task.CompletedTask;
@@ -841,12 +823,6 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 // Initial subscription
                 await _operationalClient.SubscribeAsync(subscribeOptions, loopCancellationToken);
 
-                // Create activity FIRST so WithActivity() captures the correct trace context
-                using var activity = ActivitySources.Messaging.StartActivity("SendSetupSchema", ActivityKind.Producer);
-                activity?.SetMqttTopic(setupSchemaTopic);
-                activity?.SetServiceId(serviceProviderIdentifier);
-                activity?.EnableTracing();
-
                 var msg = new MqttApplicationMessageBuilder().WithTopic(setupSchemaTopic)
                                                              .WithPayload(payload)
                                                              .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
@@ -856,21 +832,18 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                              .WithUserProperty(PublishedAt.Name, Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format)))
                                                              .WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(nameof(ServiceProviderSetupSchemaPayload)))
                                                              .WithRetainFlag()
-                                                             .WithActivity()
                                                              .Build();
 
                 while (!tcs.Task.IsCompleted)
                 {
                     loopCancellationToken.ThrowIfCancellationRequested();
 
-                    using var publishActivity = ActivitySources.Messaging.StartActivity("PublishSetupSchemaAttempt", ActivityKind.Producer);
-                    publishActivity?.SetMqttTopic(setupSchemaTopic);
                     try
                     {
                         if (needsPublish)
                         {
                             publishCount++;
-                            var publishResult = await _operationalClient.PublishAsync(msg, loopCancellationToken);
+                            var publishResult = await PublishRawAsync(_operationalClient, msg, loopCancellationToken);
 
                             if (publishResult.IsSuccess)
                             {
@@ -885,7 +858,6 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                    publishCount,
                                                    publishResult.ReasonCode,
                                                    publishResult.ReasonString);
-                                publishActivity?.MarkFailed($"Publish failed (ReasonCode: {publishResult.ReasonCode}, ReasonString: {publishResult.ReasonString})");
                             }
                         }
 
@@ -895,14 +867,12 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                     catch (OperationCanceledException)
                     {
                         _logger.LogWarning(">>> SETUP SELECTION CANCELLED - Loop aborted after {PublishCount} publish(es)", publishCount);
-                        publishActivity?.MarkFailed("Setup selection cancelled");
                         throw;
                     }
                     catch (Exception ex)
                     {
                         _logger.LogWarning(ex, ">>> WAITING FOR SETUP SELECTION - Failed to publish, will retry shortly");
                         needsPublish = true; // Retry publish on next iteration
-                        publishActivity?.MarkFailed(ex);
 
                         try
                         {
@@ -969,9 +939,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
                 client.ApplicationMessageReceivedAsync += eventArgs =>
                                                           {
-                                                              using var activity = eventArgs.StartActivity("HandleRegistrationResponse", ActivityKind.Consumer);
-                                                              activity?.SetServiceId(connectionData.ServiceProviderIdentifier);
-                                                              activity?.EnableTracing();
+                                                              using var activity = MessageActivities.StartMessageConsumeActivity(eventArgs.ApplicationMessage.Topic,
+                                                                  eventArgs.ApplicationMessage.GetTraceParent());
 
                                                               if (_logger.IsEnabled(LogLevel.Debug))
                                                               {
@@ -1036,12 +1005,6 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 _logger.LogWarning(">>> WAITING FOR REGISTRATION ACCEPTANCE - Service provider startup is BLOCKED until registration is accepted on topic: {Topic}",
                                    registrationAcceptedTopic);
 
-                // Create activity FIRST so WithActivity() captures the correct trace context
-                using var activity = ActivitySources.Messaging.StartActivity("RegisterServiceProvider", ActivityKind.Producer);
-                activity?.SetMqttTopic(topic);
-                activity?.SetServiceId(connectionData.ServiceProviderIdentifier);
-                activity?.EnableTracing();
-
                 var msg = new MqttApplicationMessageBuilder().WithTopic(topic)
                                                              .WithPayload(payload)
                                                              .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
@@ -1050,14 +1013,11 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                              .WithUserProperty(PublishedAt.Name, Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format)))
                                                              .WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(nameof(ServiceProviderRegistrationRequestPayload)))
                                                              .WithRetainFlag()
-                                                             .WithActivity()
                                                              .Build();
 
                 while (!tcs.Task.IsCompleted)
                 {
                     registrationToken.ThrowIfCancellationRequested();
-                    using var publishActivity = ActivitySources.Messaging.StartActivity("PublishRegistrationAttempt", ActivityKind.Producer);
-                    publishActivity?.SetMqttTopic(topic);
 
                     try
                     {
@@ -1070,7 +1030,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                         if (needsPublish)
                         {
                             publishCount++;
-                            var publishResult = await client.PublishAsync(msg, registrationToken);
+                            var publishResult = await PublishRawAsync(client, msg, registrationToken);
 
                             if (publishResult.IsSuccess)
                             {
@@ -1085,7 +1045,6 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                    publishCount,
                                                    publishResult.ReasonCode,
                                                    publishResult.ReasonString);
-                                publishActivity?.MarkFailed($"Publish failed (ReasonCode: {publishResult.ReasonCode}, ReasonString: {publishResult.ReasonString})");
                             }
                         }
 
@@ -1095,14 +1054,12 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                     catch (OperationCanceledException)
                     {
                         _logger.LogWarning(">>> REGISTRATION CANCELLED - Loop aborted after {PublishCount} publish(es)", publishCount);
-                        publishActivity?.MarkFailed("Registration cancelled");
                         throw;
                     }
                     catch (Exception e)
                     {
                         _logger.LogWarning(e, ">>> WAITING FOR REGISTRATION - Failed to publish or connect, will retry shortly");
                         needsPublish = true; // Retry publish on next iteration
-                        publishActivity?.MarkFailed(e);
                         try
                         {
                             // Short delay before retry on error
@@ -1166,12 +1123,6 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             var payload = JsonSerializer.SerializeToUtf8Bytes(declaration, ServiceProviderJsonContext.Default.ServiceProviderDeclarationPayload);
             var topic = ServiceProviderTopics.GetServiceProviderDeclarationTopic(installationTopic, operationalData.ConnectionData.ServiceProviderIdentifier);
 
-            // Create activity FIRST so WithActivity() captures the correct trace context
-            using var activity = ActivitySources.Messaging.StartActivity("SendDeclaration", ActivityKind.Producer);
-            activity?.SetMqttTopic(topic);
-            activity?.SetInstallationTopic(installationTopic);
-            activity?.SetServiceId(operationalData.ConnectionData.ServiceProviderIdentifier);
-
             var msg = new MqttApplicationMessageBuilder().WithTopic(topic)
                                                          .WithPayload(payload)
                                                          .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
@@ -1180,29 +1131,19 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                          .WithUserProperty(PublishedAt.Name, Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format)))
                                                          .WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(nameof(ServiceProviderDeclarationPayload)))
                                                          .WithRetainFlag()
-                                                         .WithActivity()
                                                          .Build();
 
-            try
+            var result = await PublishRawAsync(_operationalClient, msg, cancellationToken);
+            if (result.IsSuccess)
             {
-                var result = await _operationalClient.PublishAsync(msg, cancellationToken);
-                _logger.LogInformation("Published service provider declaration on {Topic}", topic);
-                if (result.IsSuccess)
-                {
-                    _logger.LogInformation("Published service provider declaration successfully (ReasonCode: {ReasonCode}) on topic {Topic}", result.ReasonCode, topic);
-                }
-                else
-                {
-                    _logger.LogWarning("Failed to publish service provider declaration (ReasonCode: {ReasonCode}, ReasonString: {ReasonString}) on topic {Topic}",
-                                       result.ReasonCode,
-                                       result.ReasonString,
-                                       topic);
-                }
+                _logger.LogInformation("Published service provider declaration successfully (ReasonCode: {ReasonCode}) on topic {Topic}", result.ReasonCode, topic);
             }
-            catch (Exception ex)
+            else
             {
-                activity?.MarkFailed(ex);
-                throw;
+                _logger.LogWarning("Failed to publish service provider declaration (ReasonCode: {ReasonCode}, ReasonString: {ReasonString}) on topic {Topic}",
+                                   result.ReasonCode,
+                                   result.ReasonString,
+                                   topic);
             }
         }
 
