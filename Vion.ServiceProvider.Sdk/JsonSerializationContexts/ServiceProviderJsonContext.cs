@@ -11,6 +11,9 @@ using ServiceProviderRegistrationAcceptedPayload = Vion.Contracts.Events.MeshToS
 
 namespace Vion.ServiceProvider.Sdk.JsonSerializationContexts
 {
+    /// <summary>
+    ///     Source generation context for all JSON payloads used in the service provider SDK.
+    /// </summary>
     [JsonSerializable(typeof(ServiceProviderDeclarationPayload))]
     [JsonSerializable(typeof(ServiceProviderRegistrationPayload))]
     [JsonSerializable(typeof(ServiceProviderRegistrationAcceptedPayload))]

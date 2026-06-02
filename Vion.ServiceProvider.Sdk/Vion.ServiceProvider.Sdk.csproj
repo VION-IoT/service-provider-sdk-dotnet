@@ -10,6 +10,10 @@
         <PackageId>Vion.ServiceProvider.Sdk</PackageId>
         <Description>SDK for building service providers that integrate with the Vion IoT platform. Handles MQTT connection, registration flow, setup schema exchange, message handler registration, and health reporting.</Description>
         <IsPackable>true</IsPackable>
+
+        <!-- Code analysis -->
+        <AnalysisMode>All</AnalysisMode>
+        <NoWarn>$(NoWarn);CA1062;CA1002;CA2007;CA1003;CA1031;CA1032;CA1034</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>

@@ -2,6 +2,8 @@ using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
@@ -59,10 +61,16 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         private volatile OperationalData? _operationalData;
 
+        [SuppressMessage("Usage",
+                         "CA2213:Disposable fields should be disposed",
+                         Justification = "Disposed via SafeCancelAndDispose in DisposeAsync, which cancels then disposes through a ref parameter — CA2213 cannot track disposal across the helper.")]
         private CancellationTokenSource? _registrationCts;
 
         private string? _secret;
 
+        [SuppressMessage("Usage",
+                         "CA2213:Disposable fields should be disposed",
+                         Justification = "Disposed via SafeCancelAndDispose in DisposeAsync, which cancels then disposes through a ref parameter — CA2213 cannot track disposal across the helper.")]
         private CancellationTokenSource? _setupSchemaCts;
 
         private int _shutdownCleanupCompleted;
@@ -116,6 +124,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             SafeCancelAndDispose(ref _registrationCts, nameof(_registrationCts));
             _operationalClient.Dispose();
             _startSemaphore.Dispose();
+
+            GC.SuppressFinalize(this);
         }
 
         /// <inheritdoc />
@@ -246,7 +256,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                              .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
                                                              .WithContentType(MessageMimeTypes.FlatBuffer)
                                                              .WithCorrelationData(correlationId.ToByteArray())
-                                                             .WithUserProperty(PublishedAt.Name, Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format)))
+                                                             .WithUserProperty(PublishedAt.Name,
+                                                                               Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format, CultureInfo.InvariantCulture)))
                                                              .WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(schema))
                                                              .WithRetainFlag(retain)
                                                              .Build();
@@ -333,7 +344,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                              .WithQualityOfServiceLevel(qos)
                                                              .WithCorrelationData(correlationId.ToByteArray())
                                                              .WithRetainFlag(retain)
-                                                             .WithUserProperty(PublishedAt.Name, Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format)));
+                                                             .WithUserProperty(PublishedAt.Name,
+                                                                               Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format, CultureInfo.InvariantCulture)));
 
             if (!payload.IsEmpty)
             {
@@ -352,7 +364,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
             if (status.HasValue)
             {
-                builder.WithUserProperty(Status.Name, Encoding.UTF8.GetBytes(status.Value.ToString().ToLowerInvariant()));
+                builder.WithUserProperty(Status.Name, Encoding.UTF8.GetBytes(status.Value == RequestStatus.Success ? Status.Success : Status.Error));
             }
 
             if (errorCode != null)
@@ -515,7 +527,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             return Task.CompletedTask;
         }
 
-        private void RegisterHandler(string topic, ServiceProviderMessageHandler handler, ConcurrentBag<HandlerConfiguration> handlers)
+        private static void RegisterHandler(string topic, ServiceProviderMessageHandler handler, ConcurrentBag<HandlerConfiguration> handlers)
         {
             handlers.Add(new HandlerConfiguration(topic, handler, false, topic));
         }
@@ -527,7 +539,9 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             var subscribeResult = await _operationalClient.SubscribeAsync(_currentClientSubscriptionOptions, cancellationToken);
             if (_logger.IsEnabled(LogLevel.Information))
             {
+#pragma warning disable CA1873
                 LogOperationalClientSubscribed(subscribeResult.ReasonString, string.Join(",\n    ", subscribeResult.Items.Select(i => $"{i.TopicFilter.Topic}: {i.ResultCode}")));
+#pragma warning restore CA1873
             }
         }
 
@@ -996,7 +1010,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                              .WithContentType(MessageMimeTypes.Json)
                                                              .WithCorrelationData(correlationId.ToByteArray())
                                                              .WithResponseTopic(setupSelectionTopic)
-                                                             .WithUserProperty(PublishedAt.Name, Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format)))
+                                                             .WithUserProperty(PublishedAt.Name,
+                                                                               Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format, CultureInfo.InvariantCulture)))
                                                              .WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(nameof(ServiceProviderSetupSchemaPayload)))
                                                              .WithRetainFlag()
                                                              .Build();
@@ -1109,10 +1124,12 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                               {
                                                                   LogReceivedRegistrationMessage(eventArgs.ApplicationMessage.Topic,
                                                                                                  eventArgs.ApplicationMessage.ContentType,
+#pragma warning disable CA1873
                                                                                                  eventArgs.ApplicationMessage
                                                                                                           .UserProperties
                                                                                                           ?.FirstOrDefault(p => p.Name == Schema.Name)
                                                                                                           ?.ReadValueAsString(),
+#pragma warning restore CA1873
                                                                                                  correlationId);
                                                               }
 
@@ -1166,7 +1183,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                              .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
                                                              .WithContentType(MessageMimeTypes.Json)
                                                              .WithCorrelationData(correlationId.ToByteArray())
-                                                             .WithUserProperty(PublishedAt.Name, Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format)))
+                                                             .WithUserProperty(PublishedAt.Name,
+                                                                               Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format, CultureInfo.InvariantCulture)))
                                                              .WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(nameof(ServiceProviderRegistrationRequestPayload)))
                                                              .WithRetainFlag()
                                                              .Build();
@@ -1264,7 +1282,9 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             var subscribeResult = await client.SubscribeAsync(mqttClientSubscribeOptions, ct);
             if (_logger.IsEnabled(LogLevel.Information))
             {
+#pragma warning disable CA1873
                 LogRegistrationClientSubscribed(subscribeResult.ReasonString, string.Join(",\n    ", subscribeResult.Items.Select(i => $"{i.TopicFilter.Topic}: {i.ResultCode}")));
+#pragma warning restore CA1873
             }
         }
 
@@ -1280,7 +1300,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                          .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
                                                          .WithContentType(MessageMimeTypes.Json)
                                                          .WithCorrelationData(correlationId.ToByteArray())
-                                                         .WithUserProperty(PublishedAt.Name, Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format)))
+                                                         .WithUserProperty(PublishedAt.Name,
+                                                                           Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format, CultureInfo.InvariantCulture)))
                                                          .WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(nameof(ServiceProviderDeclarationPayload)))
                                                          .WithRetainFlag()
                                                          .Build();
