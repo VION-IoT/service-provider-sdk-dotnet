@@ -460,8 +460,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             if (_configuration.HandlerSetupCallback == null)
             {
                 LogHandlerSetupCallbackNotConfigured();
-                _healthStateProviderFunc = () => HealthStatus.Unknown; // todo maybe change to unhealthy?
-                newHandlers = new ConcurrentBag<HandlerConfiguration>();
+                _healthStateProviderFunc = () => HealthStatus.Healthy;
+                newHandlers = [];
             }
             else
             {
