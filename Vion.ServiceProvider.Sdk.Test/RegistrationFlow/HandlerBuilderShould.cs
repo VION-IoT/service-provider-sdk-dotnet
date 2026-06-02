@@ -1,6 +1,5 @@
 using System;
 using System.Threading.Tasks;
-using MQTTnet;
 using Vion.Contracts.Events.MeshToCloud;
 using Vion.ServiceProvider.Sdk.RegistrationFlow;
 
@@ -15,7 +14,7 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
 
         private static readonly ServiceProviderDeclarationPayload Declaration = new() { Services = [] };
 
-        private static readonly Func<IServiceProviderClientHandler, MqttApplicationMessageReceivedEventArgs, Task> NoopHandler = (_, _) => Task.CompletedTask;
+        private static readonly ServiceProviderMessageHandler NoopHandler = (_, _, _, _) => Task.CompletedTask;
 
         private readonly HandlerBuilder _sut = new(InstallationTopic, ServiceProviderIdentifier, Declaration);
 

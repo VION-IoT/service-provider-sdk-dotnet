@@ -1,9 +1,9 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Moq;
 using MQTTnet;
-using MQTTnet.Packets;
 using Vion.ServiceProvider.Sdk.RegistrationFlow;
 
 namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
@@ -11,9 +11,9 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
     [TestClass]
     public class MessageDispatcherShould
     {
-        private readonly Mock<IServiceProviderClientHandler> _clientMock = new();
-
         private readonly Mock<ILogger> _loggerMock = new();
+
+        private readonly Mock<IServiceProviderPublish> _publisherMock = new();
 
         private int _fallbackInvocationCount;
 
@@ -38,7 +38,12 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
             var handlers = new[] { CreateHandlerConfiguration(topicFilter) };
 
             // Act
-            await _sut.DispatchAsync(CreateMessageArgs(messageTopic), _clientMock.Object, handlers, null);
+            await _sut.DispatchAsync(CreateMessage(messageTopic),
+                                     _publisherMock.Object,
+                                     handlers,
+                                     Guid.NewGuid(),
+                                     null,
+                                     CancellationToken.None);
 
             // Assert
             Assert.AreEqual(1, _handlerInvocationCount);
@@ -55,7 +60,12 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
             var handlers = new[] { CreateHandlerConfiguration(topicFilter) };
 
             // Act
-            await _sut.DispatchAsync(CreateMessageArgs(messageTopic), _clientMock.Object, handlers, null);
+            await _sut.DispatchAsync(CreateMessage(messageTopic),
+                                     _publisherMock.Object,
+                                     handlers,
+                                     Guid.NewGuid(),
+                                     null,
+                                     CancellationToken.None);
 
             // Assert
             Assert.AreEqual(0, _handlerInvocationCount);
@@ -68,7 +78,12 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
             var handlers = new[] { CreateHandlerConfiguration("some/very/specific/topic") };
 
             // Act
-            await _sut.DispatchAsync(CreateMessageArgs("some/other/topic"), _clientMock.Object, handlers, RecordFallbackInvocationAsync);
+            await _sut.DispatchAsync(CreateMessage("some/other/topic"),
+                                     _publisherMock.Object,
+                                     handlers,
+                                     Guid.NewGuid(),
+                                     RecordFallbackInvocationAsync,
+                                     CancellationToken.None);
 
             // Assert
             Assert.AreEqual(1, _fallbackInvocationCount);
@@ -81,7 +96,12 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
             var handlers = new[] { CreateHandlerConfiguration("foo/bar") };
 
             // Act
-            await _sut.DispatchAsync(CreateMessageArgs("foo/bar"), _clientMock.Object, handlers, RecordFallbackInvocationAsync);
+            await _sut.DispatchAsync(CreateMessage("foo/bar"),
+                                     _publisherMock.Object,
+                                     handlers,
+                                     Guid.NewGuid(),
+                                     RecordFallbackInvocationAsync,
+                                     CancellationToken.None);
 
             // Assert
             Assert.AreEqual(0, _fallbackInvocationCount);
@@ -98,14 +118,19 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
                            };
 
             // Act
-            await _sut.DispatchAsync(CreateMessageArgs("foo/bar"), _clientMock.Object, handlers, null);
+            await _sut.DispatchAsync(CreateMessage("foo/bar"),
+                                     _publisherMock.Object,
+                                     handlers,
+                                     Guid.NewGuid(),
+                                     null,
+                                     CancellationToken.None);
 
             // Assert
             Assert.AreEqual(2, _handlerInvocationCount);
         }
 
         [TestMethod]
-        public async Task InvokeRemainingHandlersWhenOneThrows()
+        public async Task InvokeRemainingHandlersWhenOneThrowsThenPropagateException()
         {
             // Arrange
             var handlers = new[]
@@ -114,16 +139,39 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
                                CreateHandlerConfiguration("foo/+"),
                            };
 
-            // Act
-            await _sut.DispatchAsync(CreateMessageArgs("foo/bar"), _clientMock.Object, handlers, null);
+            // Act / Assert — the throwing handler does not stop the others, and its exception propagates to the caller.
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => _sut.DispatchAsync(CreateMessage("foo/bar"),
+                                                                                                _publisherMock.Object,
+                                                                                                handlers,
+                                                                                                Guid.NewGuid(),
+                                                                                                null,
+                                                                                                CancellationToken.None));
+            Assert.AreEqual(2, _handlerInvocationCount);
+        }
 
-            // Assert
+        [TestMethod]
+        public async Task ThrowAggregateExceptionWhenMultipleHandlersThrow()
+        {
+            // Arrange
+            var handlers = new[]
+                           {
+                               CreateHandlerConfiguration("foo/bar", true),
+                               CreateHandlerConfiguration("foo/+", true),
+                           };
+
+            // Act / Assert
+            await Assert.ThrowsExactlyAsync<AggregateException>(() => _sut.DispatchAsync(CreateMessage("foo/bar"),
+                                                                                         _publisherMock.Object,
+                                                                                         handlers,
+                                                                                         Guid.NewGuid(),
+                                                                                         null,
+                                                                                         CancellationToken.None));
             Assert.AreEqual(2, _handlerInvocationCount);
         }
 
         private HandlerConfiguration CreateHandlerConfiguration(string topicFilter, bool shouldThrow = false)
         {
-            return new HandlerConfiguration(topicFilter, (_, _) => RecordHandlerInvocationAsync(shouldThrow), false, topicFilter);
+            return new HandlerConfiguration(topicFilter, (_, _, _, _) => RecordHandlerInvocationAsync(shouldThrow), false, topicFilter);
         }
 
         private Task RecordHandlerInvocationAsync(bool shouldThrow)
@@ -132,17 +180,15 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
             return shouldThrow ? throw new InvalidOperationException() : Task.CompletedTask;
         }
 
-        private Task RecordFallbackInvocationAsync(MqttApplicationMessageReceivedEventArgs args)
+        private Task RecordFallbackInvocationAsync()
         {
             _fallbackInvocationCount++;
             return Task.CompletedTask;
         }
 
-        private static MqttApplicationMessageReceivedEventArgs CreateMessageArgs(string topic)
+        private static MqttApplicationMessage CreateMessage(string topic)
         {
-            var message = new MqttApplicationMessageBuilder().WithTopic(topic).Build();
-            var publishPacket = new MqttPublishPacket { Topic = topic };
-            return new MqttApplicationMessageReceivedEventArgs(Guid.NewGuid().ToString(), message, publishPacket, (_, _) => Task.CompletedTask);
+            return new MqttApplicationMessageBuilder().WithTopic(topic).Build();
         }
     }
 }

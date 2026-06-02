@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using MQTTnet;
 
@@ -8,16 +9,23 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
     internal interface IMessageDispatcher
     {
         /// <summary>
-        ///     Dispatches an MQTT message to each registered handler whose topic filter matches, or invokes the fallback when none match.
+        ///     Dispatches a received message to every registered handler whose topic filter matches.
+        ///     Per-handler exceptions are collected so the remaining handlers still
+        ///     run, then propagated to the caller (a single exception is rethrown; multiple are wrapped in an
+        ///     <see cref="AggregateException" />). Invokes the fallback when no handler matches.
         /// </summary>
-        /// <param name="args">The MQTT application message received event arguments.</param>
-        /// <param name="client">The client context passed through to each invoked handler.</param>
+        /// <param name="message">The received MQTT message.</param>
+        /// <param name="publisher">The publish-only surface passed through to each invoked handler.</param>
         /// <param name="handlers">The registered handler configurations to match against.</param>
+        /// <param name="correlationId">The correlation identifier for tracking the message flow.</param>
         /// <param name="fallback">Callback invoked when no handler topic filter matches.</param>
-        /// <returns>A task representing the asynchronous dispatch operation. Per-handler exceptions are logged and do not abort dispatch to the remaining handlers.</returns>
-        Task DispatchAsync(MqttApplicationMessageReceivedEventArgs args,
-                           IServiceProviderClientHandler client,
+        /// <param name="cancellationToken">A token, cancelled on shutdown, passed through to each invoked handler.</param>
+        /// <returns>A task that completes when all matching handlers have run.</returns>
+        Task DispatchAsync(MqttApplicationMessage message,
+                           IServiceProviderPublish publisher,
                            IEnumerable<HandlerConfiguration> handlers,
-                           Func<MqttApplicationMessageReceivedEventArgs, Task>? fallback);
+                           Guid correlationId,
+                           Func<Task>? fallback,
+                           CancellationToken cancellationToken);
     }
 }

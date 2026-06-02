@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 using Vion.Contracts.Events.CloudToMesh;
 using Vion.Contracts.Events.MeshToCloud;
 using Vion.Contracts.Events.ServiceProviderToMesh;
-using Vion.ServiceProvider.Sdk.RegistrationFlow;
+using Vion.ServiceProvider.Sdk.Setup;
 using ServiceProviderRegistrationAcceptedPayload = Vion.Contracts.Events.MeshToServiceProvider.ServiceProviderRegistrationAcceptedPayload;
 
 // ReSharper disable PartialTypeWithSinglePart this must be a partial class because it is generated
@@ -15,8 +15,8 @@ namespace Vion.ServiceProvider.Sdk.JsonSerializationContexts
     [JsonSerializable(typeof(ServiceProviderRegistrationPayload))]
     [JsonSerializable(typeof(ServiceProviderRegistrationAcceptedPayload))]
     [JsonSerializable(typeof(ServiceProviderRegistrationRequestPayload))]
-    [JsonSerializable(typeof(Payloads.ServiceProviderSetupSchemaPayload))]
-    [JsonSerializable(typeof(Payloads.ServiceProviderSetupSelectionPayload))]
+    [JsonSerializable(typeof(ServiceProviderSetupSchemaPayload))]
+    [JsonSerializable(typeof(ServiceProviderSetupSelectionPayload))]
     [JsonSerializable(typeof(SetLogLevelPayload))]
     [JsonSerializable(typeof(LogLevelStatePayload))]
     [JsonSerializable(typeof(Dictionary<string, object>))]

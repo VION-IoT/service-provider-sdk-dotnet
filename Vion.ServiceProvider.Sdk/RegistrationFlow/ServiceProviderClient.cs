@@ -17,8 +17,11 @@ using Vion.Contracts.Events.MeshToServiceProvider;
 using Vion.Contracts.Events.ServiceProviderToMesh;
 using Vion.Contracts.FlatBuffers.System.Health;
 using Vion.Contracts.Mqtt;
+using Vion.ServiceProvider.Sdk.Infrastructure;
 using Vion.ServiceProvider.Sdk.JsonSerializationContexts;
 using Vion.ServiceProvider.Sdk.RegistrationFlow.Extensions;
+using Vion.ServiceProvider.Sdk.Setup;
+using Vion.ServiceProvider.Sdk.SystemControl;
 using Vion.ServiceProvider.Sdk.Tracing;
 using static Vion.Contracts.Mqtt.MqttUserProperties;
 using ConnectionStatus = Vion.Contracts.Events.MeshToCloud.ConnectionStatus;
@@ -29,7 +32,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
     /// <summary>
     ///     Implementation of the service provider client that handles MQTT communication, registration, and message publishing.
     /// </summary>
-    public class ServiceProviderClient : IServiceProviderClient, IServiceProviderClientHandler, IAsyncDisposable
+    public partial class ServiceProviderClient : IServiceProviderClient, IServiceProviderClientHandler, IAsyncDisposable
     {
         private readonly ServiceProviderClientConfiguration _configuration;
 
@@ -72,13 +75,13 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="mqttClientFactory">The factory for creating MQTT clients.</param>
         /// <param name="logger">The logger instance.</param>
         public ServiceProviderClient(ServiceProviderClientConfiguration configuration, MqttClientFactory mqttClientFactory, ILogger logger) : this(configuration,
-            mqttClientFactory,
-            logger,
-            new MessageDispatcher(logger))
+                                                                                                                                                   mqttClientFactory,
+                                                                                                                                                   logger,
+                                                                                                                                                   new MessageDispatcher(logger))
         {
         }
 
-        internal ServiceProviderClient(ServiceProviderClientConfiguration configuration, MqttClientFactory mqttClientFactory, ILogger logger, IMessageDispatcher dispatcher)
+        private ServiceProviderClient(ServiceProviderClientConfiguration configuration, MqttClientFactory mqttClientFactory, ILogger logger, IMessageDispatcher dispatcher)
         {
             _mqttClientFactory = mqttClientFactory;
             _logger = logger;
@@ -168,54 +171,53 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         }
 
         /// <inheritdoc />
-        public Task<MqttClientPublishResult> PublishAsync(string topic,
-                                                          string schema,
-                                                          string contentType,
-                                                          byte[] payload,
-                                                          CancellationToken cancellationToken,
-                                                          bool retain = true)
+        public Task<MqttClientPublishResult> PublishMessageAsync(string topic,
+                                                                 Guid correlationId,
+                                                                 CancellationToken cancellationToken,
+                                                                 string? contentType = null,
+                                                                 string? schema = null,
+                                                                 ReadOnlyMemory<byte> payload = default,
+                                                                 MqttQualityOfServiceLevel qos = MqttQualityOfServiceLevel.AtLeastOnce,
+                                                                 bool retain = false)
         {
-            // publish
-            var msg = new MqttApplicationMessageBuilder().WithTopic(topic)
-                                                         .WithPayload(payload)
-                                                         .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
-                                                         .WithContentType(contentType)
-                                                         .WithUserProperty(PublishedAt.Name, Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format)))
-                                                         .WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(schema))
-                                                         .WithRetainFlag(retain)
-                                                         .Build();
-
-            return PublishAsync(msg, cancellationToken);
+            var msg = BuildMessage(topic,
+                                   correlationId,
+                                   contentType,
+                                   schema,
+                                   payload,
+                                   qos,
+                                   retain,
+                                   null,
+                                   null,
+                                   null);
+            LogPublishingMessage(correlationId, topic);
+            return PublishRawAsync(msg, cancellationToken);
         }
 
-        /// <summary>
-        ///     Publishes an MQTT application message to the operational MQTT broker.
-        /// </summary>
-        /// <param name="msg">The MQTT application message to publish.</param>
-        /// <param name="cancellationToken">The cancellation token for the operation.</param>
-        /// <returns>A task representing the asynchronous operation.</returns>
-        public async Task<MqttClientPublishResult> PublishAsync(MqttApplicationMessage msg, CancellationToken cancellationToken)
+        /// <inheritdoc />
+        public Task<MqttClientPublishResult> PublishResponseAsync(string topic,
+                                                                  RequestStatus status,
+                                                                  Guid correlationId,
+                                                                  CancellationToken cancellationToken,
+                                                                  string? contentType = null,
+                                                                  string? schema = null,
+                                                                  ReadOnlyMemory<byte> payload = default,
+                                                                  string? errorCode = null,
+                                                                  string? errorMessage = null,
+                                                                  MqttQualityOfServiceLevel qos = MqttQualityOfServiceLevel.AtLeastOnce)
         {
-            using var activity = ActivitySources.Messaging.StartActivity("PublishMessage", ActivityKind.Producer);
-            activity?.SetMqttTopic(msg.Topic);
-            activity?.SetInstallationTopic(_operationalData?.InstallationTopic ?? "unknown");
-            activity?.SetServiceId(_operationalData?.ConnectionData.ServiceProviderIdentifier ?? "unknown");
-
-            try
-            {
-                var result = await _operationalClient.PublishAsync(msg, cancellationToken);
-                if (!result.IsSuccess)
-                {
-                    activity?.MarkFailed($"Publish failed: {result.ReasonCode} - {result.ReasonString}");
-                }
-
-                return result;
-            }
-            catch (Exception ex)
-            {
-                activity?.MarkFailed(ex);
-                throw;
-            }
+            var msg = BuildMessage(topic,
+                                   correlationId,
+                                   contentType,
+                                   schema,
+                                   payload,
+                                   qos,
+                                   false,
+                                   status,
+                                   errorCode,
+                                   errorMessage);
+            LogPublishingMessage(correlationId, topic);
+            return PublishRawAsync(msg, cancellationToken);
         }
 
         /// <inheritdoc />
@@ -255,7 +257,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                              .WithActivity()
                                                              .Build();
 
-                var result = await client.PublishAsync(msg, cancellationToken);
+                var result = await PublishRawAsync(msg, cancellationToken);
                 if (!result.IsSuccess)
                 {
                     activity?.MarkFailed($"Publish health status failed: {result.ReasonCode} - {result.ReasonString}");
@@ -281,10 +283,16 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                     return; // Not yet registered, skip publishing
                 }
 
-                var currentLevel = _configuration.CurrentLogLevelProviderCallback!.Invoke();
+                var currentLevel = (_configuration.CurrentLogLevelProviderCallback ?? (() => LogLevelManager.CurrentLevel)).Invoke();
                 var topic = $"{InstallationTopic}/{ServiceProviderIdentifier}{Topics.ServiceProviderLogLevelState}";
                 var payload = JsonSerializer.SerializeToUtf8Bytes(new LogLevelStatePayload(currentLevel), ServiceProviderJsonContext.Default.LogLevelStatePayload);
-                var result = await PublishAsync(topic, nameof(LogLevelStatePayload), MessageMimeTypes.Json, payload, CancellationToken.None);
+                var result = await PublishMessageAsync(topic,
+                                                       Guid.NewGuid(),
+                                                       CancellationToken.None,
+                                                       MessageMimeTypes.Json,
+                                                       nameof(LogLevelStatePayload),
+                                                       payload,
+                                                       retain: true);
 
                 if (!result.IsSuccess)
                 {
@@ -307,6 +315,93 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         public string? ServiceProviderIdentifier
         {
             get => _operationalData?.ConnectionData.ServiceProviderIdentifier;
+        }
+
+        private static MqttApplicationMessage BuildMessage(string topic,
+                                                           Guid correlationId,
+                                                           string? contentType,
+                                                           string? schema,
+                                                           ReadOnlyMemory<byte> payload,
+                                                           MqttQualityOfServiceLevel qos,
+                                                           bool retain,
+                                                           RequestStatus? status,
+                                                           string? errorCode,
+                                                           string? errorMessage)
+        {
+            if (!payload.IsEmpty)
+            {
+                if (schema == null)
+                {
+                    throw new ArgumentException("A schema is required when a payload is provided.", nameof(schema));
+                }
+
+                if (contentType == null)
+                {
+                    throw new ArgumentException("A content type is required when a payload is provided.", nameof(contentType));
+                }
+            }
+
+            var builder = new MqttApplicationMessageBuilder().WithTopic(topic)
+                                                             .WithQualityOfServiceLevel(qos)
+                                                             .WithCorrelationData(correlationId.ToByteArray())
+                                                             .WithRetainFlag(retain)
+                                                             .WithUserProperty(PublishedAt.Name, Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format)));
+
+            if (!payload.IsEmpty)
+            {
+                builder.WithPayload(new ReadOnlySequence<byte>(payload));
+            }
+
+            if (contentType != null)
+            {
+                builder.WithContentType(contentType);
+            }
+
+            if (schema != null)
+            {
+                builder.WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(schema));
+            }
+
+            if (status.HasValue)
+            {
+                builder.WithUserProperty(Status.Name, Encoding.UTF8.GetBytes(status.Value.ToString().ToLowerInvariant()));
+            }
+
+            if (errorCode != null)
+            {
+                builder.WithUserProperty(ErrorCode.Name, Encoding.UTF8.GetBytes(errorCode));
+            }
+
+            if (errorMessage != null)
+            {
+                builder.WithUserProperty(ErrorMessage.Name, Encoding.UTF8.GetBytes(errorMessage));
+            }
+
+            return builder.WithActivity().Build();
+        }
+
+        private async Task<MqttClientPublishResult> PublishRawAsync(MqttApplicationMessage msg, CancellationToken cancellationToken)
+        {
+            using var activity = ActivitySources.Messaging.StartActivity("PublishMessage", ActivityKind.Producer);
+            activity?.SetMqttTopic(msg.Topic);
+            activity?.SetInstallationTopic(_operationalData?.InstallationTopic ?? "unknown");
+            activity?.SetServiceId(_operationalData?.ConnectionData.ServiceProviderIdentifier ?? "unknown");
+
+            try
+            {
+                var result = await _operationalClient.PublishAsync(msg, cancellationToken);
+                if (!result.IsSuccess)
+                {
+                    activity?.MarkFailed($"Publish failed: {result.ReasonCode} - {result.ReasonString}");
+                }
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                activity?.MarkFailed(ex);
+                throw;
+            }
         }
 
         private async Task PublishInitialStatesAsync(CancellationToken stoppingToken)
@@ -376,22 +471,22 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 _healthStateProviderFunc = handlerBuilder.HealthCheckStatusProviderFunc;
             }
 
-            RegisterAdditionalHandlers(newHandlers, stoppingToken);
+            RegisterAdditionalHandlers(newHandlers);
 
             Interlocked.Exchange(ref _handlers, newHandlers); // Atomic swap of complete bag
 
             return InternalUpdateSubscriptionAsync(_handlers, stoppingToken);
         }
 
-        private void RegisterAdditionalHandlers(ConcurrentBag<HandlerConfiguration> newHandlers, CancellationToken stoppingToken)
+        private void RegisterAdditionalHandlers(ConcurrentBag<HandlerConfiguration> newHandlers)
         {
             var topicGetComponentHealth =
                 ServiceProviderTopics.GetTopicGetComponentHealth(_operationalData!.InstallationTopic, _operationalData.ConnectionData.ServiceProviderIdentifier);
             RegisterHandler(topicGetComponentHealth,
-                            async (client, eventArgs) =>
+                            async (_, message, correlationId, cancellationToken) =>
                             {
                                 var healthStatus = _healthStateProviderFunc?.Invoke() ?? HealthStatus.Healthy;
-                                var responseTopic = eventArgs.ApplicationMessage.ResponseTopic;
+                                var responseTopic = message.ResponseTopic;
 
                                 // todo is it enough to send it only to the response topic? do we need to also publish it to the general health state topic for monitoring purposes? (currently doing both)
                                 if (!string.IsNullOrEmpty(responseTopic))
@@ -400,10 +495,10 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                                    ConnectionStatus.Online,
                                                                    healthStatus,
                                                                    DateTime.UtcNow,
-                                                                   client,
-                                                                   eventArgs.ApplicationMessage.CorrelationData,
+                                                                   this,
+                                                                   correlationId.ToByteArray(),
                                                                    false,
-                                                                   stoppingToken);
+                                                                   cancellationToken);
                                 }
                                 else
                                 {
@@ -414,23 +509,33 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                                ConnectionStatus.Online,
                                                                healthStatus,
                                                                DateTime.UtcNow,
-                                                               client,
+                                                               this,
                                                                null,
                                                                true,
-                                                               stoppingToken);
+                                                               cancellationToken);
                             },
                             newHandlers);
 
             var restartTopic = ServiceProviderTopics.GetRestartTopic(_operationalData!.InstallationTopic, _operationalData.ConnectionData.ServiceProviderIdentifier);
-            RegisterHandler(restartTopic, (client, eventArgs) => _configuration.OnRestartCallback?.Invoke(client, eventArgs), newHandlers);
+            RegisterHandler(restartTopic, _configuration.OnRestartCallback ?? DefaultRestartAsync, newHandlers);
 
             var logLevelTopic = ServiceProviderTopics.LogLevelSetTopic(_operationalData!.InstallationTopic, _operationalData.ConnectionData.ServiceProviderIdentifier);
-            RegisterHandler(logLevelTopic, (client, eventArgs) => _configuration.OnLogLevelChangeCallback?.Invoke(client, eventArgs), newHandlers);
+            RegisterHandler(logLevelTopic, _configuration.OnLogLevelChangeCallback ?? DefaultSetLogLevelAsync, newHandlers);
         }
 
-        private void RegisterHandler(string topic,
-                                     Func<IServiceProviderClientHandler, MqttApplicationMessageReceivedEventArgs, Task?> handler,
-                                     ConcurrentBag<HandlerConfiguration> handlers)
+        private Task DefaultSetLogLevelAsync(IServiceProviderPublish publisher, MqttApplicationMessage message, Guid correlationId, CancellationToken cancellationToken)
+        {
+            LogLogLevelHandlerNotConfigured(correlationId);
+            return Task.CompletedTask;
+        }
+
+        private Task DefaultRestartAsync(IServiceProviderPublish publisher, MqttApplicationMessage message, Guid correlationId, CancellationToken cancellationToken)
+        {
+            LogRestartHandlerNotConfigured(correlationId);
+            return Task.CompletedTask;
+        }
+
+        private void RegisterHandler(string topic, ServiceProviderMessageHandler handler, ConcurrentBag<HandlerConfiguration> handlers)
         {
             handlers.Add(new HandlerConfiguration(topic, handler, false, topic));
         }
@@ -531,6 +636,34 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             }
         }
 
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Received message (CorrelationId={CorrelationId}, Topic={Topic})")]
+        private partial void LogReceivedMessage(Guid correlationId, string topic);
+
+        [LoggerMessage(Level = LogLevel.Error, Message = "Message will not be processed — reason: {Reason} (Topic={Topic})")]
+        private partial void LogInvalidCorrelationId(string reason, string topic);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Message handling was canceled due to client shutdown (CorrelationId={CorrelationId}, Topic={Topic})")]
+        private partial void LogMessageHandlingCanceledByShutdown(Guid correlationId, string topic);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Message handling was canceled (CorrelationId={CorrelationId}, Topic={Topic})")]
+        private partial void LogMessageHandlingCanceled(Guid correlationId, string topic);
+
+        [LoggerMessage(Level = LogLevel.Error, Message = "An exception occurred while processing the message (CorrelationId={CorrelationId}, Topic={Topic})")]
+        private partial void LogMessageProcessingError(Exception exception, Guid correlationId, string topic);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Publishing message (CorrelationId={CorrelationId}, Topic={Topic})")]
+        private partial void LogPublishingMessage(Guid correlationId, string topic);
+
+        [LoggerMessage(Level = LogLevel.Warning,
+                       Message =
+                           "Received logLevel/set command but no handler is configured — override WithLogLevelChangeCallback or use AddVionServiceProvider (CorrelationId={CorrelationId})")]
+        private partial void LogLogLevelHandlerNotConfigured(Guid correlationId);
+
+        [LoggerMessage(Level = LogLevel.Warning,
+                       Message =
+                           "Received restart command but no handler is configured — override WithRestartCallback or use AddVionServiceProvider (CorrelationId={CorrelationId})")]
+        private partial void LogRestartHandlerNotConfigured(Guid correlationId);
+
         #region callbacks
 
         private async Task OnApplicationMessageReceivedAsync(MqttApplicationMessageReceivedEventArgs arg)
@@ -539,22 +672,47 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             activity?.SetInstallationTopic(_operationalData?.InstallationTopic ?? "unknown");
             activity?.SetServiceId(_operationalData?.ConnectionData.ServiceProviderIdentifier ?? "unknown");
 
-            if (_logger.IsEnabled(LogLevel.Debug))
+            var topic = arg.ApplicationMessage.Topic;
+
+            Guid correlationId;
+            try
             {
-                _logger.LogDebug("Received message on topic {Topic}, content type {ContentType}, schema {Schema}",
-                                 arg.ApplicationMessage.Topic,
-                                 arg.ApplicationMessage.ContentType,
-                                 arg.ApplicationMessage.UserProperties?.FirstOrDefault(p => p.Name == Schema.Name)?.ReadValueAsString());
+                correlationId = arg.ApplicationMessage.GetCorrelationId();
+            }
+            catch (Exception exception)
+            {
+                // A message without a parseable correlation ID violates the wire contract — log and drop, don't dispatch.
+                LogInvalidCorrelationId(exception.Message, topic);
+                activity?.MarkFailed(exception.Message);
+                return;
             }
 
             try
             {
-                await _dispatcher.DispatchAsync(arg, this, _handlers, ApplicationMessageReceivedAsync);
+                LogReceivedMessage(correlationId, topic);
+                var fallback = ApplicationMessageReceivedAsync;
+                await _dispatcher.DispatchAsync(arg.ApplicationMessage,
+                                                this,
+                                                _handlers,
+                                                correlationId,
+                                                fallback is null ? null : () => fallback.Invoke(arg),
+                                                _appStoppingToken ?? CancellationToken.None);
             }
-            catch (Exception ex)
+            catch (OperationCanceledException)
             {
-                activity?.MarkFailed(ex);
-                throw;
+                if (_appStoppingToken is { IsCancellationRequested: true })
+                {
+                    LogMessageHandlingCanceledByShutdown(correlationId, topic);
+                }
+                else
+                {
+                    LogMessageHandlingCanceled(correlationId, topic);
+                }
+            }
+            catch (Exception exception)
+            {
+                LogMessageProcessingError(exception, correlationId, topic);
+                activity?.MarkFailed(exception);
             }
         }
 
@@ -589,7 +747,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         #region flow
 
-        private async Task<Payloads.ServiceProviderSetupSelectionPayload> SendSetupSchemaAsync(CancellationToken cancellationToken)
+        private async Task<ServiceProviderSetupSelectionPayload> SendSetupSchemaAsync(CancellationToken cancellationToken)
         {
             var serviceProviderIdentifier = _operationalData!.ConnectionData.ServiceProviderIdentifier;
             var installationTopic = _operationalData.InstallationTopic;
@@ -597,7 +755,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             // Build topics for setup schema request/response
             var setupSchemaTopic = ServiceProviderTopics.GetSetupSchemaTopic(installationTopic, serviceProviderIdentifier);
             var setupSelectionTopic = ServiceProviderTopics.GetSelectionTopic(installationTopic, serviceProviderIdentifier);
-            var tcs = new TaskCompletionSource<Payloads.ServiceProviderSetupSelectionPayload>();
+            var tcs = new TaskCompletionSource<ServiceProviderSetupSelectionPayload>();
             var correlationData = Guid.NewGuid().ToByteArray();
 
             // Create cancellation source that cancels on disconnection OR app stopping
@@ -696,7 +854,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                              .WithCorrelationData(correlationData)
                                                              .WithResponseTopic(setupSelectionTopic)
                                                              .WithUserProperty(PublishedAt.Name, Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format)))
-                                                             .WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(nameof(Payloads.ServiceProviderSetupSchemaPayload)))
+                                                             .WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(nameof(ServiceProviderSetupSchemaPayload)))
                                                              .WithRetainFlag()
                                                              .WithActivity()
                                                              .Build();
