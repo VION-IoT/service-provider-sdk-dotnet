@@ -15,8 +15,6 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
 
         private readonly Mock<IServiceProviderPublish> _publisherMock = new();
 
-        private int _fallbackInvocationCount;
-
         private int _handlerInvocationCount;
 
         private MessageDispatcher _sut = null!;
@@ -42,7 +40,6 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
                                      _publisherMock.Object,
                                      handlers,
                                      Guid.NewGuid(),
-                                     null,
                                      CancellationToken.None);
 
             // Assert
@@ -64,7 +61,6 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
                                      _publisherMock.Object,
                                      handlers,
                                      Guid.NewGuid(),
-                                     null,
                                      CancellationToken.None);
 
             // Assert
@@ -72,39 +68,37 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
         }
 
         [TestMethod]
-        public async Task InvokeFallbackWhenNoHandlerMatches()
+        public async Task ReturnFalseWhenNoHandlerMatches()
         {
             // Arrange
             var handlers = new[] { CreateHandlerConfiguration("some/very/specific/topic") };
 
             // Act
-            await _sut.DispatchAsync(CreateMessage("some/other/topic"),
-                                     _publisherMock.Object,
-                                     handlers,
-                                     Guid.NewGuid(),
-                                     RecordFallbackInvocationAsync,
-                                     CancellationToken.None);
+            var handled = await _sut.DispatchAsync(CreateMessage("some/other/topic"),
+                                                   _publisherMock.Object,
+                                                   handlers,
+                                                   Guid.NewGuid(),
+                                                   CancellationToken.None);
 
             // Assert
-            Assert.AreEqual(1, _fallbackInvocationCount);
+            Assert.IsFalse(handled);
         }
 
         [TestMethod]
-        public async Task NotInvokeFallbackWhenHandlerMatches()
+        public async Task ReturnTrueWhenHandlerMatches()
         {
             // Arrange
             var handlers = new[] { CreateHandlerConfiguration("foo/bar") };
 
             // Act
-            await _sut.DispatchAsync(CreateMessage("foo/bar"),
-                                     _publisherMock.Object,
-                                     handlers,
-                                     Guid.NewGuid(),
-                                     RecordFallbackInvocationAsync,
-                                     CancellationToken.None);
+            var handled = await _sut.DispatchAsync(CreateMessage("foo/bar"),
+                                                   _publisherMock.Object,
+                                                   handlers,
+                                                   Guid.NewGuid(),
+                                                   CancellationToken.None);
 
             // Assert
-            Assert.AreEqual(0, _fallbackInvocationCount);
+            Assert.IsTrue(handled);
         }
 
         [TestMethod]
@@ -122,7 +116,6 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
                                      _publisherMock.Object,
                                      handlers,
                                      Guid.NewGuid(),
-                                     null,
                                      CancellationToken.None);
 
             // Assert
@@ -144,7 +137,6 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
                                                                                                 _publisherMock.Object,
                                                                                                 handlers,
                                                                                                 Guid.NewGuid(),
-                                                                                                null,
                                                                                                 CancellationToken.None));
             Assert.AreEqual(2, _handlerInvocationCount);
         }
@@ -164,7 +156,6 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
                                                                                          _publisherMock.Object,
                                                                                          handlers,
                                                                                          Guid.NewGuid(),
-                                                                                         null,
                                                                                          CancellationToken.None));
             Assert.AreEqual(2, _handlerInvocationCount);
         }
@@ -178,12 +169,6 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
         {
             _handlerInvocationCount++;
             return shouldThrow ? throw new InvalidOperationException() : Task.CompletedTask;
-        }
-
-        private Task RecordFallbackInvocationAsync()
-        {
-            _fallbackInvocationCount++;
-            return Task.CompletedTask;
         }
 
         private static MqttApplicationMessage CreateMessage(string topic)

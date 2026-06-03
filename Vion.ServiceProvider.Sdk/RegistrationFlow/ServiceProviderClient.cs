@@ -915,13 +915,23 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             try
             {
                 LogReceivedMessage(correlationId, topic);
-                var fallback = ApplicationMessageReceivedAsync;
-                await _dispatcher.DispatchAsync(arg.ApplicationMessage,
-                                                this,
-                                                _handlers,
-                                                correlationId,
-                                                fallback is null ? null : () => fallback.Invoke(arg),
-                                                _appStoppingToken ?? CancellationToken.None);
+                var handled = await _dispatcher.DispatchAsync(arg.ApplicationMessage,
+                                                              this,
+                                                              _handlers,
+                                                              correlationId,
+                                                              _appStoppingToken ?? CancellationToken.None);
+                if (!handled)
+                {
+                    var fallback = ApplicationMessageReceivedAsync;
+                    if (fallback != null)
+                    {
+                        await fallback.Invoke(arg);
+                    }
+                    else
+                    {
+                        LogNoHandlerFound(correlationId, topic);
+                    }
+                }
             }
             catch (OperationCanceledException)
             {

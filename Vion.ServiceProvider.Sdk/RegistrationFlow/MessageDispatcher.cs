@@ -18,12 +18,11 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         }
 
         /// <inheritdoc />
-        public async Task DispatchAsync(MqttApplicationMessage message,
-                                        IServiceProviderPublish publisher,
-                                        HandlerConfiguration[] handlers,
-                                        Guid correlationId,
-                                        Func<Task>? fallback,
-                                        CancellationToken cancellationToken)
+        public async Task<bool> DispatchAsync(MqttApplicationMessage message,
+                                              IServiceProviderPublish publisher,
+                                              HandlerConfiguration[] handlers,
+                                              Guid correlationId,
+                                              CancellationToken cancellationToken)
         {
             var handled = false;
             List<Exception>? exceptions = null;
@@ -48,29 +47,16 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 }
             }
 
-            if (!handled)
-            {
-                if (fallback != null)
-                {
-                    await fallback.Invoke();
-                }
-                else
-                {
-                    LogNoHandlerFound(correlationId, message.Topic);
-                }
-            }
-
             switch (exceptions)
             {
                 case { Count: 1 }: ExceptionDispatchInfo.Throw(exceptions[0]); break;
                 case { Count: > 1 }: throw new AggregateException(exceptions);
             }
+
+            return handled;
         }
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "Dispatching message to handler (CorrelationId={CorrelationId}, Topic={Topic})")]
         private partial void LogDispatchingMessageToHandler(Guid correlationId, string topic);
-
-        [LoggerMessage(Level = LogLevel.Warning, Message = "No handler found for message (CorrelationId={CorrelationId}, Topic={Topic})")]
-        private partial void LogNoHandlerFound(Guid correlationId, string topic);
     }
 }
