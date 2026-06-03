@@ -37,6 +37,30 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
     /// </summary>
     public partial class ServiceProviderClient : IServiceProviderClient, IServiceProviderClientHandler, IAsyncDisposable
     {
+        private static readonly ObjectPool<MqttApplicationMessage> MessagePool = new(static () => new MqttApplicationMessage
+                                                                                                  {
+                                                                                                      CorrelationData = new byte[16],
+                                                                                                      UserProperties =
+                                                                                                          new List<
+                                                                                                              MqttUserProperty>(2), // Pre-size list because PublishedAt is always set and schema almost always
+                                                                                                  },
+                                                                                     static message =>
+                                                                                     {
+                                                                                         // CorrelationData is not reset to avoid reallocating a byte array everytime
+                                                                                         message.ContentType = null;
+                                                                                         message.Dup = false;
+                                                                                         message.MessageExpiryInterval = 0;
+                                                                                         message.Payload = ReadOnlySequence<byte>.Empty;
+                                                                                         message.PayloadFormatIndicator = MqttPayloadFormatIndicator.Unspecified;
+                                                                                         message.QualityOfServiceLevel = default;
+                                                                                         message.ResponseTopic = null;
+                                                                                         message.Retain = false;
+                                                                                         message.SubscriptionIdentifiers = null;
+                                                                                         message.Topic = null;
+                                                                                         message.TopicAlias = 0;
+                                                                                         message.UserProperties?.Clear();
+                                                                                     });
+
         private readonly ServiceProviderClientConfiguration _configuration;
 
         private readonly IMessageDispatcher _dispatcher;
@@ -195,18 +219,18 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                                  MqttQualityOfServiceLevel qos = MqttQualityOfServiceLevel.AtLeastOnce,
                                                                  bool retain = false)
         {
-            var msg = BuildMessage(topic,
-                                   correlationId,
-                                   contentType,
-                                   schema,
-                                   payload,
-                                   qos,
-                                   retain,
-                                   null,
-                                   null,
-                                   null);
             LogPublishingMessage(correlationId, topic);
-            return PublishRawAsync(_operationalClient, msg, cancellationToken);
+            return PublishPooledAsync(topic,
+                                      correlationId,
+                                      contentType,
+                                      schema,
+                                      payload,
+                                      qos,
+                                      retain,
+                                      null,
+                                      null,
+                                      null,
+                                      cancellationToken);
         }
 
         /// <inheritdoc />
@@ -221,18 +245,18 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                                   string? errorMessage = null,
                                                                   MqttQualityOfServiceLevel qos = MqttQualityOfServiceLevel.AtLeastOnce)
         {
-            var msg = BuildMessage(topic,
-                                   correlationId,
-                                   contentType,
-                                   schema,
-                                   payload,
-                                   qos,
-                                   false,
-                                   status,
-                                   errorCode,
-                                   errorMessage);
             LogPublishingMessage(correlationId, topic);
-            return PublishRawAsync(_operationalClient, msg, cancellationToken);
+            return PublishPooledAsync(topic,
+                                      correlationId,
+                                      contentType,
+                                      schema,
+                                      payload,
+                                      qos,
+                                      false,
+                                      status,
+                                      errorCode,
+                                      errorMessage,
+                                      cancellationToken);
         }
 
         /// <inheritdoc />
@@ -254,19 +278,17 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                                                           flatBufferConnectionStatus,
                                                                                           flatBufferHealthStatus,
                                                                                           since);
-                var schema = nameof(ComponentHealthStatusPayload);
-                var msg = new MqttApplicationMessageBuilder().WithTopic(topic)
-                                                             .WithPayload(payload)
-                                                             .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
-                                                             .WithContentType(MessageMimeTypes.FlatBuffer)
-                                                             .WithCorrelationData(correlationId.ToByteArray())
-                                                             .WithUserProperty(PublishedAt.Name,
-                                                                               Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format, CultureInfo.InvariantCulture)))
-                                                             .WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(schema))
-                                                             .WithRetainFlag(retain)
-                                                             .Build();
-
-                return await PublishRawAsync(_operationalClient, msg, cancellationToken);
+                return await PublishPooledAsync(topic,
+                                                correlationId,
+                                                MessageMimeTypes.FlatBuffer,
+                                                nameof(ComponentHealthStatusPayload),
+                                                payload,
+                                                MqttQualityOfServiceLevel.AtMostOnce,
+                                                retain,
+                                                null,
+                                                null,
+                                                null,
+                                                cancellationToken);
             }
             catch (Exception ex)
             {
@@ -320,16 +342,51 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             get => _operationalData?.ConnectionData.ServiceProviderIdentifier;
         }
 
-        private static MqttApplicationMessage BuildMessage(string topic,
-                                                           Guid correlationId,
-                                                           string? contentType,
-                                                           string? schema,
-                                                           ReadOnlyMemory<byte> payload,
-                                                           MqttQualityOfServiceLevel qos,
-                                                           bool retain,
-                                                           RequestStatus? status,
-                                                           string? errorCode,
-                                                           string? errorMessage)
+        private async Task<MqttClientPublishResult> PublishPooledAsync(string topic,
+                                                                       Guid correlationId,
+                                                                       string? contentType,
+                                                                       string? schema,
+                                                                       ReadOnlyMemory<byte> payload,
+                                                                       MqttQualityOfServiceLevel qos,
+                                                                       bool retain,
+                                                                       RequestStatus? status,
+                                                                       string? errorCode,
+                                                                       string? errorMessage,
+                                                                       CancellationToken cancellationToken)
+        {
+            var message = MessagePool.Rent();
+            try
+            {
+                FillMessage(message,
+                            topic,
+                            correlationId,
+                            contentType,
+                            schema,
+                            payload,
+                            qos,
+                            retain,
+                            status,
+                            errorCode,
+                            errorMessage);
+                return await PublishRawAsync(_operationalClient, message, cancellationToken);
+            }
+            finally
+            {
+                MessagePool.Return(message);
+            }
+        }
+
+        private static void FillMessage(MqttApplicationMessage message,
+                                        string topic,
+                                        Guid correlationId,
+                                        string? contentType,
+                                        string? schema,
+                                        ReadOnlyMemory<byte> payload,
+                                        MqttQualityOfServiceLevel qos,
+                                        bool retain,
+                                        RequestStatus? status,
+                                        string? errorCode,
+                                        string? errorMessage)
         {
             if (!payload.IsEmpty)
             {
@@ -344,44 +401,43 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 }
             }
 
-            var builder = new MqttApplicationMessageBuilder().WithTopic(topic)
-                                                             .WithQualityOfServiceLevel(qos)
-                                                             .WithCorrelationData(correlationId.ToByteArray())
-                                                             .WithRetainFlag(retain)
-                                                             .WithUserProperty(PublishedAt.Name,
-                                                                               Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format, CultureInfo.InvariantCulture)));
+            message.Topic = topic;
+            message.QualityOfServiceLevel = qos;
+            correlationId.TryWriteBytes(message.CorrelationData);
+            message.Retain = retain;
 
             if (!payload.IsEmpty)
             {
-                builder.WithPayload(new ReadOnlySequence<byte>(payload));
+                message.Payload = new ReadOnlySequence<byte>(payload);
             }
 
             if (contentType != null)
             {
-                builder.WithContentType(contentType);
+                message.ContentType = contentType;
             }
+
+            var userProperties = message.UserProperties;
+            userProperties.Add(new MqttUserProperty(PublishedAt.Name, Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format, CultureInfo.InvariantCulture))));
 
             if (schema != null)
             {
-                builder.WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(schema));
+                userProperties.Add(new MqttUserProperty(Schema.Name, Encoding.UTF8.GetBytes(schema)));
             }
 
             if (status.HasValue)
             {
-                builder.WithUserProperty(Status.Name, Encoding.UTF8.GetBytes(status.Value == RequestStatus.Success ? Status.Success : Status.Error));
+                userProperties.Add(new MqttUserProperty(Status.Name, Encoding.UTF8.GetBytes(status.Value == RequestStatus.Success ? Status.Success : Status.Error)));
             }
 
             if (errorCode != null)
             {
-                builder.WithUserProperty(ErrorCode.Name, Encoding.UTF8.GetBytes(errorCode));
+                userProperties.Add(new MqttUserProperty(ErrorCode.Name, Encoding.UTF8.GetBytes(errorCode)));
             }
 
             if (errorMessage != null)
             {
-                builder.WithUserProperty(ErrorMessage.Name, Encoding.UTF8.GetBytes(errorMessage));
+                userProperties.Add(new MqttUserProperty(ErrorMessage.Name, Encoding.UTF8.GetBytes(errorMessage)));
             }
-
-            return builder.Build();
         }
 
         private static async Task<MqttClientPublishResult> PublishRawAsync(IMqttClient client, MqttApplicationMessage msg, CancellationToken cancellationToken)
