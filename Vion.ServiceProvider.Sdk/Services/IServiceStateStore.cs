@@ -32,5 +32,12 @@ namespace Vion.ServiceProvider.Sdk.Services
         /// <exception cref="InvalidOperationException">The store has not been initialized.</exception>
         /// <exception cref="OperationCanceledException">The update was canceled via <paramref name="cancellationToken" />.</exception>
         Task<TService> UpdateAsync(string field, JsonNode? value, CancellationToken cancellationToken);
+
+        /// <summary>Returns the current in-memory state snapshot.</summary>
+        /// <param name="cancellationToken">A token to cancel the read.</param>
+        /// <returns>The current snapshot.</returns>
+        /// <exception cref="InvalidOperationException">The store has not been initialized.</exception>
+        /// <exception cref="OperationCanceledException">The read was canceled via <paramref name="cancellationToken" />.</exception>
+        Task<TService> GetCurrentAsync(CancellationToken cancellationToken);
     }
 }

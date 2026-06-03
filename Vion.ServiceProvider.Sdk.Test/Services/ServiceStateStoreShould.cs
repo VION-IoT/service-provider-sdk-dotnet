@@ -196,5 +196,46 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
             // Assert
             Assert.AreEqual(expectedPlain, updated.Plain);
         }
+
+        [TestMethod]
+        public async Task ThrowOnGetCurrentWhenNotInitialized()
+        {
+            // Arrange
+
+            // Act / Assert
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => _sut.GetCurrentAsync(CancellationToken.None));
+        }
+
+        [TestMethod]
+        public async Task ReturnCurrentState()
+        {
+            // Arrange
+            var expectedPlain = Guid.NewGuid().ToString();
+            var expectedSecret = Guid.NewGuid().ToString();
+            _diskState[StateFilePath] = $"{{\"plain\":\"{expectedPlain}\",\"secret\":\"{expectedSecret}\"}}";
+            await _sut.InitializeAsync(CancellationToken.None).WaitAsync(_testTimeout, CancellationToken.None);
+
+            // Act
+            var current = await _sut.GetCurrentAsync(CancellationToken.None).WaitAsync(_testTimeout, CancellationToken.None);
+
+            // Assert
+            Assert.AreEqual(expectedPlain, current.Plain);
+            Assert.AreEqual(expectedSecret, current.Secret);
+        }
+
+        [TestMethod]
+        public async Task ReturnCurrentStateAfterUpdate()
+        {
+            // Arrange
+            await _sut.InitializeAsync(CancellationToken.None).WaitAsync(_testTimeout, CancellationToken.None);
+            var expectedPlain = Guid.NewGuid().ToString();
+            await _sut.UpdateAsync(TestSchema.Plain.Name, JsonValue.Create(expectedPlain), CancellationToken.None).WaitAsync(_testTimeout, CancellationToken.None);
+
+            // Act
+            var current = await _sut.GetCurrentAsync(CancellationToken.None).WaitAsync(_testTimeout, CancellationToken.None);
+
+            // Assert
+            Assert.AreEqual(expectedPlain, current.Plain);
+        }
     }
 }

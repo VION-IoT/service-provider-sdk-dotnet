@@ -139,6 +139,25 @@ namespace Vion.ServiceProvider.Sdk.Services
             return newState;
         }
 
+        /// <inheritdoc />
+        public async Task<TService> GetCurrentAsync(CancellationToken cancellationToken)
+        {
+            await _stateLock.WaitAsync(cancellationToken);
+            try
+            {
+                if (!_initialized)
+                {
+                    throw new InvalidOperationException($"{nameof(ServiceStateStore<>)} must be initialized before {nameof(GetCurrentAsync)}.");
+                }
+
+                return _current;
+            }
+            finally
+            {
+                _stateLock.Release();
+            }
+        }
+
         private void Persist(TService state)
         {
             var directory = Path.GetDirectoryName(_stateFilePath);
