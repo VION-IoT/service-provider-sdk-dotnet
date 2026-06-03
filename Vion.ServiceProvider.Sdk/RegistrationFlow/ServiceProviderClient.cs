@@ -163,10 +163,12 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                     await ConnectOperationalClientAsync(stoppingToken);
                     var serviceProviderDeclarationPayload = await SendOptionalSetupSchemaAsync(stoppingToken);
                     await SendDeclarationAsync(_operationalData, serviceProviderDeclarationPayload, stoppingToken);
-
                     await SetupHandlersAsync(stoppingToken);
-
                     await PublishInitialStatesAsync(stoppingToken);
+                    if (_configuration.OnOperationalReadyCallback is { } onOperationalReady)
+                    {
+                        await onOperationalReady(this, stoppingToken);
+                    }
                 }
                 catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
                 {

@@ -145,6 +145,12 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         ///     <see cref="SystemControl.LogLevelManager.CurrentLevel" /> when not supplied.
         /// </summary>
         public Func<LogLevel>? CurrentLogLevelProviderCallback { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the callback invoked once the service provider is fully operational — registered, declared,
+        ///     subscribed, and with initial SDK state published. <c>null</c> when not configured.
+        /// </summary>
+        public Func<IServiceProviderPublish, CancellationToken, Task>? OnOperationalReadyCallback { get; set; }
     }
 
     /// <summary>
@@ -393,6 +399,23 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         {
             _config.OnLogLevelChangeCallback = onLogLevelChangedCallback;
             _config.CurrentLogLevelProviderCallback = logLevelProviderCallback;
+            return this;
+        }
+
+        /// <summary>
+        ///     Registers an async callback invoked once the service provider is fully operational — after it has registered,
+        ///     connected, sent its declaration, subscribed its handlers, and published its initial SDK state. Optional.
+        /// </summary>
+        /// <remarks>
+        ///     Invoked on every successful (re)connection: the SDK re-runs the full startup flow whenever the operational
+        ///     connection is (re)established, so this fires again after each reconnect. Use it to (re)publish service state the
+        ///     broker may have lost or that changed while offline.
+        /// </remarks>
+        /// <param name="onOperationalReady">The callback, receiving the publish surface and the application-stopping token.</param>
+        /// <returns>This builder, for chaining.</returns>
+        public ServiceProviderClientBuilder WithOnOperationalReady(Func<IServiceProviderPublish, CancellationToken, Task> onOperationalReady)
+        {
+            _config.OnOperationalReadyCallback = onOperationalReady;
             return this;
         }
 
