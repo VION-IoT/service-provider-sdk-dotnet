@@ -166,7 +166,7 @@ namespace Vion.ServiceProvider.Sdk.Test.Infrastructure
             var actualTraceParent = message.GetTraceParent();
 
             // Assert
-            Assert.AreEqual(traceParent, actualTraceParent);
+            Assert.AreEqual(traceParent, Encoding.UTF8.GetString(actualTraceParent!.Value.Span));
         }
 
         [TestMethod]
