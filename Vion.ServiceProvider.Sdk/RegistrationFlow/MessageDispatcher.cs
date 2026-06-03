@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -61,10 +62,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
             switch (exceptions)
             {
-                case { Count: 1 }:
-                    throw exceptions[0];
-                case { Count: > 1 }:
-                    throw new AggregateException(exceptions);
+                case { Count: 1 }: ExceptionDispatchInfo.Throw(exceptions[0]); break;
+                case { Count: > 1 }: throw new AggregateException(exceptions);
             }
         }
 
