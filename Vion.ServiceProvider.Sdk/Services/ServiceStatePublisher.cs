@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,6 +21,8 @@ namespace Vion.ServiceProvider.Sdk.Services
 
         private readonly string _serviceProviderIdentifier;
 
+        private readonly ConcurrentDictionary<TopicKey, string> _topicByField = new();
+
         /// <summary>Initializes a new instance of the <see cref="ServiceStatePublisher" /> class.</summary>
         /// <param name="installationTopic">The installation topic, known after registration acceptance.</param>
         /// <param name="serviceProviderIdentifier">This service provider's identifier.</param>
@@ -34,13 +37,13 @@ namespace Vion.ServiceProvider.Sdk.Services
         {
             var publishedValue = field.IsWriteOnly && value is not null ? JsonValue.Create(WriteOnlyConventions.RedactedSentinel) : value;
             var payload = PropertyValueCodec.JsonToFlatBuffer(publishedValue, field.Schema.Type);
-            var topicSuffix = field.Kind switch
+
+            var topicKey = new TopicKey(serviceIdentifier, field);
+            if (!_topicByField.TryGetValue(topicKey, out var topic))
             {
-                ServiceFieldKind.Property => Topics.PropertyState,
-                ServiceFieldKind.MeasuringPoint => Topics.MeasuringPointState,
-                _ => throw new InvalidOperationException($"Unknown field kind '{field.Kind}' on field '{field.Name}'."),
-            };
-            var topic = $"{_installationTopic}/{_serviceProviderIdentifier}/{serviceIdentifier}/{field.Name}{topicSuffix}";
+                topic = BuildTopic(serviceIdentifier, field);
+                _topicByField[topicKey] = topic;
+            }
 
             return publisher.PublishMessageAsync(topic,
                                                  Guid.NewGuid(),
@@ -51,5 +54,19 @@ namespace Vion.ServiceProvider.Sdk.Services
                                                  MqttQualityOfServiceLevel.AtMostOnce,
                                                  true);
         }
+
+        private string BuildTopic(string serviceIdentifier, IServiceField field)
+        {
+            var topicSuffix = field.Kind switch
+            {
+                ServiceFieldKind.Property => Topics.PropertyState,
+                ServiceFieldKind.MeasuringPoint => Topics.MeasuringPointState,
+                _ => throw new InvalidOperationException($"Unknown field kind '{field.Kind}' on field '{field.Name}'."),
+            };
+
+            return $"{_installationTopic}/{_serviceProviderIdentifier}/{serviceIdentifier}/{field.Name}{topicSuffix}";
+        }
+
+        private readonly record struct TopicKey(string ServiceIdentifier, IServiceField Field);
     }
 }

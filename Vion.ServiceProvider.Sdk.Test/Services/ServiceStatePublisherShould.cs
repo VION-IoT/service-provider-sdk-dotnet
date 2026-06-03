@@ -91,6 +91,19 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
             Assert.IsNull(DecodePayload(call.Payload));
         }
 
+        [TestMethod]
+        public async Task UseFieldSpecificTopicForEachFieldOnTheSameInstance()
+        {
+            // Act — publish two different fields through the same (topic-caching) publisher instance.
+            var propertyCall = await PublishAsync(TestSchema.Plain, JsonValue.Create(Guid.NewGuid().ToString()));
+            var measuringPointCall = await PublishAsync(TestSchema.Reading, JsonValue.Create(Random.Shared.NextDouble()));
+
+            // Assert — the cache keys per (serviceIdentifier, field), so distinct fields resolve to distinct, correct
+            // topics rather than colliding on a single cached entry.
+            Assert.AreEqual($"{InstallationTopic}/{SpId}/{SvcId}/{TestSchema.Plain.Name}/sw/property/state", propertyCall.Topic);
+            Assert.AreEqual($"{InstallationTopic}/{SpId}/{SvcId}/{TestSchema.Reading.Name}/sw/measuringPoint/state", measuringPointCall.Topic);
+        }
+
         private static JsonNode? DecodePayload(byte[] payload)
         {
             return PropertyValueCodec.FlatBufferToJson(new ByteBuffer(payload));
