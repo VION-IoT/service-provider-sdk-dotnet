@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Vion.Contracts.Events.MeshToCloud;
 using Vion.ServiceProvider.Sdk.Setup;
@@ -45,6 +47,10 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <summary>
         ///     Provide SetupSchema and validate setup selection, e.g. by checking selected options
         /// </summary>
+        /// <remarks>
+        ///     The validation callback runs on every successful (re)connection — the SDK re-runs the setup-schema exchange
+        ///     whenever the operational connection is (re)established. Keep it cheap and side-effect-free.
+        /// </remarks>
         /// <param name="setupSchemaPayload">The setup schema to send.</param>
         /// <param name="validationCallback">The setup selection validation func.</param>
         /// <returns>A builder for further builder.</returns>
@@ -59,6 +65,10 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <summary>
         ///     Sets the declaration callback for the service provider.
         /// </summary>
+        /// <remarks>
+        ///     The callback runs on every successful (re)connection — the SDK rebuilds and resends the declaration whenever the
+        ///     operational connection is (re)established. Keep it cheap and idempotent.
+        /// </remarks>
         /// <param name="declarationCallback">The callback function that provides the service provider declaration.</param>
         /// <returns>A builder for handler registration and optional lifecycle overrides.</returns>
         public ServiceProviderClientBuilder WithDeclaration(Func<ServiceProviderDeclarationPayload> declarationCallback)
@@ -156,6 +166,10 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <summary>
         ///     Build declaration based on setup selection, e.g. by including/excluding services or contracts
         /// </summary>
+        /// <remarks>
+        ///     The callback runs on every successful (re)connection — the SDK rebuilds and resends the declaration whenever the
+        ///     operational connection is (re)established. Keep it cheap and idempotent.
+        /// </remarks>
         /// <param name="declarationCallback">The declaration callback based on setup selection.</param>
         /// <returns>A builder for handler registration and optional lifecycle overrides.</returns>
         public ServiceProviderClientBuilder WithDeclaration(
@@ -319,6 +333,11 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <summary>
         ///     Configures the message handlers for the service provider.
         /// </summary>
+        /// <remarks>
+        ///     The callback runs on every successful (re)connection — the SDK re-invokes it (rebuilding handlers and
+        ///     re-subscribing) whenever the operational connection is (re)established. Anything constructed inside it is rebuilt
+        ///     each time, so construct shared/stateful objects once outside the callback and only wire them up here.
+        /// </remarks>
         /// <param name="handlerSetupCallback">The callback action to configure handlers.</param>
         /// <returns>This builder, for chaining.</returns>
         public ServiceProviderClientBuilder WithHandlers(Action<IHandlerBuilder> handlerSetupCallback)
