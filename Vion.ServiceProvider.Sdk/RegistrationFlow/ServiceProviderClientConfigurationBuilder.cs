@@ -242,8 +242,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <summary>
         ///     Sets the health check evaluator function for monitoring service health.
         /// </summary>
-        /// <param name="healthCheckEvaluator">The function that evaluates and returns the current health status.</param>
-        void WithHealthCheckEvaluator(Func<HealthStatus> healthCheckEvaluator);
+        /// <param name="healthCheckEvaluator">The function that evaluates and returns the current health result.</param>
+        void WithHealthCheckEvaluator(Func<HealthCheckResult> healthCheckEvaluator);
     }
 
     /// <summary>
@@ -259,7 +259,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <summary>
         ///     Gets or sets the health check status provider function.
         /// </summary>
-        public Func<HealthStatus>? HealthCheckStatusProviderFunc { get; private set; }
+        public Func<HealthCheckResult>? HealthCheckStatusProviderFunc { get; private set; }
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="HandlerBuilder" /> class.
@@ -311,8 +311,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         ///     This allows to set a health check evaluator function that can be used to monitor the health status of the service
         ///     provider. The function should return a HealthStatus indicating the current health state.
         /// </summary>
-        /// <param name="healthCheckEvaluator">The function to evaluate the health status.</param>
-        public void WithHealthCheckEvaluator(Func<HealthStatus> healthCheckEvaluator)
+        /// <param name="healthCheckEvaluator">The function to evaluate the health result.</param>
+        public void WithHealthCheckEvaluator(Func<HealthCheckResult> healthCheckEvaluator)
         {
             HealthCheckStatusProviderFunc = healthCheckEvaluator;
         }

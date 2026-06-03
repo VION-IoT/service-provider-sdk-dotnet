@@ -81,7 +81,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         private volatile HandlerConfiguration[] _handlers = [];
 
-        private volatile Func<HealthStatus>? _healthStateProviderFunc;
+        private volatile Func<HealthCheckResult>? _healthStateProviderFunc;
 
         private volatile OperationalData? _operationalData;
 
@@ -263,7 +263,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         public async Task<MqttClientPublishResult> PublishHealthStatusAsync(string topic,
                                                                             ConnectionStatus connectionStatus,
                                                                             HealthStatus healthStatus,
-                                                                            DateTime since,
+                                                                            DateTime? since,
+                                                                            string? reason,
                                                                             IServiceProviderClientHandler client,
                                                                             Guid correlationId,
                                                                             bool retain,
@@ -277,7 +278,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 var payload = FlatBufferPayloadFactory.CreateComponentHealthStatusPayload(client.ServiceProviderIdentifier!,
                                                                                           flatBufferConnectionStatus,
                                                                                           flatBufferHealthStatus,
-                                                                                          since);
+                                                                                          since,
+                                                                                          reason);
                 return await PublishPooledAsync(topic,
                                                 correlationId,
                                                 MessageMimeTypes.FlatBuffer,
@@ -473,7 +475,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             await PublishHealthStatusAsync(topicComponentHealthState,
                                            ConnectionStatus.Online,
                                            HealthStatus.Unknown,
-                                           DateTime.UtcNow,
+                                           null,
+                                           null,
                                            this,
                                            Guid.NewGuid(),
                                            true,
@@ -520,7 +523,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             if (_configuration.HandlerSetupCallback == null)
             {
                 LogHandlerSetupCallbackNotConfigured();
-                _healthStateProviderFunc = () => HealthStatus.Healthy;
+                _healthStateProviderFunc = static () => new HealthCheckResult(HealthStatus.Healthy);
                 newHandlers = [];
             }
             else
@@ -546,15 +549,16 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             RegisterHandler(topicGetComponentHealth,
                             async (_, message, correlationId, cancellationToken) =>
                             {
-                                var healthStatus = _healthStateProviderFunc?.Invoke() ?? HealthStatus.Healthy;
+                                var health = _healthStateProviderFunc?.Invoke() ?? new HealthCheckResult(HealthStatus.Healthy);
                                 var responseTopic = message.ResponseTopic;
 
                                 if (!string.IsNullOrEmpty(responseTopic))
                                 {
                                     await PublishHealthStatusAsync(responseTopic,
                                                                    ConnectionStatus.Online,
-                                                                   healthStatus,
-                                                                   DateTime.UtcNow,
+                                                                   health.Status,
+                                                                   health.Since,
+                                                                   health.Reason,
                                                                    this,
                                                                    correlationId,
                                                                    false,
@@ -611,7 +615,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 await PublishHealthStatusAsync(_topicComponentHealthState,
                                                ConnectionStatus.Offline,
                                                HealthStatus.Unknown,
-                                               DateTime.UtcNow,
+                                               null,
+                                               null,
                                                this,
                                                Guid.NewGuid(),
                                                true,
@@ -678,7 +683,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 await PublishHealthStatusAsync(_topicComponentHealthState,
                                                ConnectionStatus.Online,
                                                HealthStatus.Unknown,
-                                               DateTime.UtcNow,
+                                               null,
+                                               null,
                                                this,
                                                Guid.NewGuid(),
                                                true,
@@ -692,6 +698,9 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "Received message (CorrelationId={CorrelationId}, Topic={Topic})")]
         private partial void LogReceivedMessage(Guid correlationId, string topic);
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "No handler found for message (CorrelationId={CorrelationId}, Topic={Topic})")]
+        private partial void LogNoHandlerFound(Guid correlationId, string topic);
 
         [LoggerMessage(Level = LogLevel.Error, Message = "Message will not be processed — reason: {Reason} (Topic={Topic})")]
         private partial void LogInvalidCorrelationId(string reason, string topic);

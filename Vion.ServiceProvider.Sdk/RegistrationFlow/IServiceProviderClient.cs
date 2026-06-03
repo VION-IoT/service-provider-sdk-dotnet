@@ -14,7 +14,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <summary>
         ///     Event triggered when an MQTT application message is received and not handled by any registered handler.
         /// </summary>
-        event Func<MqttApplicationMessageReceivedEventArgs, Task> ApplicationMessageReceivedAsync; // todo return converted type
+        event Func<MqttApplicationMessageReceivedEventArgs, Task> ApplicationMessageReceivedAsync;
 
         /// <summary>
         ///     Event triggered when the MQTT client successfully connects.
@@ -45,6 +45,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="connectionStatus">The connection status of the service provider.</param>
         /// <param name="healthStatus">The health status of the service provider.</param>
         /// <param name="since">The timestamp since when this status has been active.</param>
+        /// <param name="reason">A human-readable reason for the current health state.</param>
         /// <param name="client">The service provider client handler.</param>
         /// <param name="correlationId">The correlation identifier for tracking the message flow.</param>
         /// <param name="retain">Whether the message should be retained by the broker.</param>
@@ -53,7 +54,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         Task<MqttClientPublishResult> PublishHealthStatusAsync(string topic,
                                                                ConnectionStatus connectionStatus,
                                                                HealthStatus healthStatus,
-                                                               DateTime since,
+                                                               DateTime? since,
+                                                               string? reason,
                                                                IServiceProviderClientHandler client,
                                                                Guid correlationId,
                                                                bool retain,
