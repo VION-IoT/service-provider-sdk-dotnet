@@ -1,6 +1,6 @@
 using System;
 using System.Buffers;
-using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -55,7 +55,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         private MqttClientSubscribeOptions? _currentClientSubscriptionOptions;
 
-        private ConcurrentBag<HandlerConfiguration> _handlers = [];
+        private volatile HandlerConfiguration[] _handlers = [];
 
         private volatile Func<HealthStatus>? _healthStateProviderFunc;
 
@@ -460,7 +460,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         private Task SetupHandlersAsync(CancellationToken stoppingToken)
         {
-            ConcurrentBag<HandlerConfiguration> newHandlers;
+            List<HandlerConfiguration> newHandlers;
             if (_configuration.HandlerSetupCallback == null)
             {
                 LogHandlerSetupCallbackNotConfigured();
@@ -472,19 +472,18 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 var handlerBuilder = _configuration.HandlerSetupCallback!.Invoke(_operationalData!.InstallationTopic,
                                                                                  _operationalData.ConnectionData.ServiceProviderIdentifier,
                                                                                  _configuration.DeclarationPayload!);
-                newHandlers = new ConcurrentBag<HandlerConfiguration>(handlerBuilder.ConfigHandlers);
+                newHandlers = [.. handlerBuilder.ConfigHandlers];
 
                 _healthStateProviderFunc = handlerBuilder.HealthCheckStatusProviderFunc;
             }
 
             RegisterAdditionalHandlers(newHandlers);
-
-            Interlocked.Exchange(ref _handlers, newHandlers); // Atomic swap of complete bag
+            _handlers = newHandlers.ToArray();
 
             return InternalUpdateSubscriptionAsync(_handlers, stoppingToken);
         }
 
-        private void RegisterAdditionalHandlers(ConcurrentBag<HandlerConfiguration> newHandlers)
+        private void RegisterAdditionalHandlers(List<HandlerConfiguration> newHandlers)
         {
             var topicGetComponentHealth =
                 ServiceProviderTopics.GetTopicGetComponentHealth(_operationalData!.InstallationTopic, _operationalData.ConnectionData.ServiceProviderIdentifier);
@@ -531,12 +530,12 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             return Task.CompletedTask;
         }
 
-        private static void RegisterHandler(string topic, ServiceProviderMessageHandler handler, ConcurrentBag<HandlerConfiguration> handlers)
+        private static void RegisterHandler(string topic, ServiceProviderMessageHandler handler, List<HandlerConfiguration> handlers)
         {
             handlers.Add(new HandlerConfiguration(topic, handler, false, topic));
         }
 
-        private async Task InternalUpdateSubscriptionAsync(ConcurrentBag<HandlerConfiguration> handlers, CancellationToken cancellationToken)
+        private async Task InternalUpdateSubscriptionAsync(HandlerConfiguration[] handlers, CancellationToken cancellationToken)
         {
             var topics = handlers.Select(h => h.TopicFilter).ToHashSet();
             _currentClientSubscriptionOptions = new MqttClientSubscribeOptions { TopicFilters = topics.Select(t => new MqttTopicFilterBuilder().WithTopic(t).Build()).ToList() };

@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using MQTTnet;
@@ -23,7 +22,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <returns>A task that completes when all matching handlers have run.</returns>
         Task DispatchAsync(MqttApplicationMessage message,
                            IServiceProviderPublish publisher,
-                           IEnumerable<HandlerConfiguration> handlers,
+                           HandlerConfiguration[] handlers,
                            Guid correlationId,
                            Func<Task>? fallback,
                            CancellationToken cancellationToken);

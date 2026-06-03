@@ -19,7 +19,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <inheritdoc />
         public async Task DispatchAsync(MqttApplicationMessage message,
                                         IServiceProviderPublish publisher,
-                                        IEnumerable<HandlerConfiguration> handlers,
+                                        HandlerConfiguration[] handlers,
                                         Guid correlationId,
                                         Func<Task>? fallback,
                                         CancellationToken cancellationToken)
