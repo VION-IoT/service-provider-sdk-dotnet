@@ -377,7 +377,8 @@ stateDiagram-v2
 **Notes**:
 
 - All incoming messages go through the same handler matching logic - there are no separate "fast paths" for health or contract messages
-- Handlers are matched using MQTT topic-filter semantics (`MqttTopicFilterComparer.Compare`) against each handler's topic filter, so subscription wildcards (`+`/`#`) match incoming topics per the MQTT spec
+- Handlers are matched using MQTT topic-filter semantics (`MqttTopicFilterComparer.Compare`) against each handler's topic filter, so subscription wildcards (`+`/`#`) match incoming
+  topics per the MQTT spec
 - Incoming messages without a parseable correlation ID violate the wire contract and are logged and dropped (not dispatched)
 - Multiple handlers can match the same message (they execute sequentially)
 - All published messages include:

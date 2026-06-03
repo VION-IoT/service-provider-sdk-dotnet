@@ -36,11 +36,7 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
             var handlers = new[] { CreateHandlerConfiguration(topicFilter) };
 
             // Act
-            await _sut.DispatchAsync(CreateMessage(messageTopic),
-                                     _publisherMock.Object,
-                                     handlers,
-                                     Guid.NewGuid(),
-                                     CancellationToken.None);
+            await _sut.DispatchAsync(CreateMessage(messageTopic), _publisherMock.Object, handlers, Guid.NewGuid(), CancellationToken.None);
 
             // Assert
             Assert.AreEqual(1, _handlerInvocationCount);
@@ -57,11 +53,7 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
             var handlers = new[] { CreateHandlerConfiguration(topicFilter) };
 
             // Act
-            await _sut.DispatchAsync(CreateMessage(messageTopic),
-                                     _publisherMock.Object,
-                                     handlers,
-                                     Guid.NewGuid(),
-                                     CancellationToken.None);
+            await _sut.DispatchAsync(CreateMessage(messageTopic), _publisherMock.Object, handlers, Guid.NewGuid(), CancellationToken.None);
 
             // Assert
             Assert.AreEqual(0, _handlerInvocationCount);
@@ -74,11 +66,7 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
             var handlers = new[] { CreateHandlerConfiguration("some/very/specific/topic") };
 
             // Act
-            var handled = await _sut.DispatchAsync(CreateMessage("some/other/topic"),
-                                                   _publisherMock.Object,
-                                                   handlers,
-                                                   Guid.NewGuid(),
-                                                   CancellationToken.None);
+            var handled = await _sut.DispatchAsync(CreateMessage("some/other/topic"), _publisherMock.Object, handlers, Guid.NewGuid(), CancellationToken.None);
 
             // Assert
             Assert.IsFalse(handled);
@@ -91,11 +79,7 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
             var handlers = new[] { CreateHandlerConfiguration("foo/bar") };
 
             // Act
-            var handled = await _sut.DispatchAsync(CreateMessage("foo/bar"),
-                                                   _publisherMock.Object,
-                                                   handlers,
-                                                   Guid.NewGuid(),
-                                                   CancellationToken.None);
+            var handled = await _sut.DispatchAsync(CreateMessage("foo/bar"), _publisherMock.Object, handlers, Guid.NewGuid(), CancellationToken.None);
 
             // Assert
             Assert.IsTrue(handled);
@@ -112,11 +96,7 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
                            };
 
             // Act
-            await _sut.DispatchAsync(CreateMessage("foo/bar"),
-                                     _publisherMock.Object,
-                                     handlers,
-                                     Guid.NewGuid(),
-                                     CancellationToken.None);
+            await _sut.DispatchAsync(CreateMessage("foo/bar"), _publisherMock.Object, handlers, Guid.NewGuid(), CancellationToken.None);
 
             // Assert
             Assert.AreEqual(2, _handlerInvocationCount);
