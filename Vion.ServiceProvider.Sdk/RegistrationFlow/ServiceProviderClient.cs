@@ -17,7 +17,6 @@ using MQTTnet.Protocol;
 using Vion.Contracts.Events.MeshToCloud;
 using Vion.Contracts.Events.MeshToServiceProvider;
 using Vion.Contracts.Events.ServiceProviderToMesh;
-using Vion.Contracts.FlatBuffers.System.Health;
 using Vion.Contracts.Mqtt;
 using Vion.ServiceProvider.Sdk.Infrastructure;
 using Vion.ServiceProvider.Sdk.JsonSerializationContexts;
@@ -26,6 +25,7 @@ using Vion.ServiceProvider.Sdk.Setup;
 using Vion.ServiceProvider.Sdk.SystemControl;
 using Vion.Telemetry.Instrumentation;
 using static Vion.Contracts.Mqtt.MqttUserProperties;
+using ComponentHealthStatusPayload = Vion.Contracts.FlatBuffers.System.Health.ComponentHealthStatusPayload;
 using ConnectionStatus = Vion.Contracts.Events.MeshToCloud.ConnectionStatus;
 using HealthStatus = Vion.Contracts.Events.MeshToCloud.HealthStatus;
 using MqttUserProperty = MQTTnet.Packets.MqttUserProperty;
@@ -924,11 +924,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             try
             {
                 LogReceivedMessage(correlationId, topic);
-                var handled = await _dispatcher.DispatchAsync(arg.ApplicationMessage,
-                                                              this,
-                                                              _handlers,
-                                                              correlationId,
-                                                              _appStoppingToken ?? CancellationToken.None);
+                var handled = await _dispatcher.DispatchAsync(arg.ApplicationMessage, this, _handlers, correlationId, _appStoppingToken ?? CancellationToken.None);
                 if (!handled)
                 {
                     var fallback = ApplicationMessageReceivedAsync;

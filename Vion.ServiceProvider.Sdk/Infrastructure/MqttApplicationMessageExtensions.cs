@@ -148,9 +148,9 @@ namespace Vion.ServiceProvider.Sdk.Infrastructure
             ///     Reads the W3C <c>traceparent</c> user property carried for cross-hop trace propagation.
             /// </summary>
             /// <returns>The <c>traceparent</c> value, or <c>null</c> if the message carries none.</returns>
-            public string? GetTraceParent()
+            public ReadOnlyMemory<byte>? GetTraceParent()
             {
-                return message.UserProperties?.Find(property => property.Name == MqttUserProperties.TraceParent.Name)?.ReadValueAsString();
+                return message.UserProperties?.Find(property => property.Name == MqttUserProperties.TraceParent.Name)?.ValueBuffer;
             }
 
             /// <summary>
