@@ -7,9 +7,17 @@ namespace Vion.ServiceProvider.Sdk.Services
 {
     /// <summary>Owns a service's persisted state.</summary>
     /// <remarks>
-    ///     Updates are serialized internally, so the persisted state stays consistent even under concurrent callers.
-    ///     Notification order, however, is only guaranteed for a single writer: with concurrent writers, <see cref="StateChanged" /> subscribers may be notified
-    ///     out of order and must not depend on it.
+    ///     <para>
+    ///         Intended for configuration-style state — values that need to be restored on restart so the service comes back
+    ///         up already configured. Every <see cref="UpdateAsync" /> serializes the full state and writes it to disk,
+    ///         so this is the wrong tool for high-frequency values such as live measuring-point readings: those should be
+    ///         measured and published, not persisted to file on every change.
+    ///     </para>
+    ///     <para>
+    ///         Updates are serialized internally, so the persisted state stays consistent even under concurrent callers.
+    ///         Notification order, however, is only guaranteed for a single writer: with concurrent writers,
+    ///         <see cref="StateChanged" /> subscribers may be notified out of order and must not depend on it.
+    ///     </para>
     /// </remarks>
     /// <typeparam name="TService">The service type whose state is managed.</typeparam>
     public interface IServiceStateStore<TService>
