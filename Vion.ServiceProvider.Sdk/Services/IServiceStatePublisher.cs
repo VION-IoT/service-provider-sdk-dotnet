@@ -20,6 +20,6 @@ namespace Vion.ServiceProvider.Sdk.Services
         ///     For write-only fields, a non-null <paramref name="value" /> is replaced with the redacted
         ///     sentinel before broadcast.
         /// </remarks>
-        Task PublishFieldAsync(IServiceProviderPublish publisher, string serviceIdentifier, IServiceField field, JsonNode? value, CancellationToken cancellationToken);
+        Task PublishFieldAsync(IServiceProviderPublisher publisher, string serviceIdentifier, IServiceField field, JsonNode? value, CancellationToken cancellationToken);
     }
 }

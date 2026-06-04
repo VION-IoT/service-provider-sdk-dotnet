@@ -36,7 +36,7 @@ namespace Vion.ServiceProvider.Sdk.Test.SystemControl
             var message = MqttApplicationMessageBuilder.BuildEmptyPayload(Guid.NewGuid().ToString());
 
             // Act
-            await _sut.HandleAsync(Mock.Of<IServiceProviderPublish>(), message, Guid.NewGuid(), CancellationToken.None);
+            await _sut.HandleAsync(Mock.Of<IServiceProviderPublisher>(), message, Guid.NewGuid(), CancellationToken.None);
             await stopRequested.Task.WaitAsync(_testTimeout, CancellationToken.None);
 
             // Assert
@@ -52,7 +52,7 @@ namespace Vion.ServiceProvider.Sdk.Test.SystemControl
             var message = MqttApplicationMessageBuilder.BuildEmptyPayload(Guid.NewGuid().ToString());
 
             // Act
-            var handleTask = _sut.HandleAsync(Mock.Of<IServiceProviderPublish>(), message, Guid.NewGuid(), CancellationToken.None);
+            var handleTask = _sut.HandleAsync(Mock.Of<IServiceProviderPublisher>(), message, Guid.NewGuid(), CancellationToken.None);
 
             // Assert
             Assert.IsTrue(handleTask.IsCompletedSuccessfully);

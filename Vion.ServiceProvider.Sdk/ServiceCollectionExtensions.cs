@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MQTTnet;
+using Vion.ServiceProvider.Sdk.Infrastructure;
 using Vion.ServiceProvider.Sdk.RegistrationFlow;
 using Vion.ServiceProvider.Sdk.SystemControl;
 
@@ -15,16 +16,16 @@ namespace Vion.ServiceProvider.Sdk
     public static class ServiceCollectionExtensions
     {
         /// <summary>
-        ///     Registers a <see cref="ServiceProviderClient" /> (and <see cref="IServiceProviderClient" />), wires the default
-        ///     system-control handlers, and seeds <see cref="LogLevelManager" /> from configuration.
+        ///     Registers a <see cref="ServiceProviderClient" /> (and <see cref="IServiceProviderClient" />), wires the default system-control handlers, and seeds
+        ///     <see cref="LogLevelManager" /> from configuration.
         /// </summary>
         /// <remarks>
         ///     Unless the supplied configuration overrides them, the <c>restart</c> handler is wired to the host-stopping
         ///     <see cref="RestartHandler" /> and the <c>logLevel/set</c> handler to <see cref="SetLogLevelHandler" /> — both
         ///     resolved from DI (so <see cref="RestartHandler" /> receives the host's
-        ///     <see cref="Microsoft.Extensions.Hosting.IHostApplicationLifetime" />). The state publisher / store
-        ///     (<see cref="Services.ServiceStatePublisher" /> / <see cref="Services.ServiceStateStore{TService}" />) are
-        ///     opt-in: construct them in the post-acceptance <c>WithHandlers</c> callback, where the installation topic is known.
+        ///     <see cref="Microsoft.Extensions.Hosting.IHostApplicationLifetime" />). For service-field state the SDK also
+        ///     provides <see cref="Services.ServiceStatePublisher" /> to publish property or measuring-point states and
+        ///     <see cref="Services.ServiceStateStore{TService}" /> to persist service state to the disk.
         /// </remarks>
         /// <param name="services">The service collection.</param>
         /// <param name="configuration">Configuration used to seed <see cref="LogLevelManager" />.</param>
@@ -38,10 +39,9 @@ namespace Vion.ServiceProvider.Sdk
                                                                    Func<IServiceProvider, ServiceProviderClientConfiguration> configure)
         {
             LogLevelManager.InitializeFromConfig(configuration);
-
+            services.AddSingleton<IDiskAccessProvider, DiskAccessProvider>();
             services.AddSingleton<RestartHandler>();
             services.AddSingleton<SetLogLevelHandler>();
-
             services.AddSingleton<ServiceProviderClient>(serviceProvider =>
                                                          {
                                                              var clientConfiguration = configure(serviceProvider);

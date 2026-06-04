@@ -12,8 +12,20 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
     ///     payload must declare its <c>schema</c> and content type. There is no raw <see cref="MqttApplicationMessage" />
     ///     overload — the SDK enforces the platform messaging contract on the way out.
     /// </summary>
-    public interface IServiceProviderPublish
+    public interface IServiceProviderPublisher
     {
+        /// <summary>
+        ///     The installation topic root, assigned at registration acceptance. <c>null</c> before the service provider is
+        ///     operational; non-null whenever this surface is handed to a message handler or the operational-ready callback.
+        /// </summary>
+        string? InstallationTopic { get; }
+
+        /// <summary>
+        ///     This service provider's identifier. <c>null</c> before the service provider is operational; non-null whenever
+        ///     this surface is handed to a message handler or the operational-ready callback.
+        /// </summary>
+        string? ServiceProviderIdentifier { get; }
+
         /// <summary>
         ///     Publishes a message to the operational broker.
         /// </summary>

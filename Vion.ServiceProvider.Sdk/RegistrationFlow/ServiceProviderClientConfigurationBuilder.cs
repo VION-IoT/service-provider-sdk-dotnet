@@ -150,7 +150,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         ///     Gets or sets the callback invoked once the service provider is fully operational — registered, declared,
         ///     subscribed, and with initial SDK state published. <c>null</c> when not configured.
         /// </summary>
-        public Func<IServiceProviderPublish, CancellationToken, Task>? OnOperationalReadyCallback { get; set; }
+        public Func<IServiceProviderPublisher, CancellationToken, Task>? OnOperationalReadyCallback { get; set; }
     }
 
     /// <summary>
@@ -413,7 +413,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// </remarks>
         /// <param name="onOperationalReady">The callback, receiving the publish surface and the application-stopping token.</param>
         /// <returns>This builder, for chaining.</returns>
-        public ServiceProviderClientBuilder WithOnOperationalReady(Func<IServiceProviderPublish, CancellationToken, Task> onOperationalReady)
+        public ServiceProviderClientBuilder WithOnOperationalReady(Func<IServiceProviderPublisher, CancellationToken, Task> onOperationalReady)
         {
             _config.OnOperationalReadyCallback = onOperationalReady;
             return this;

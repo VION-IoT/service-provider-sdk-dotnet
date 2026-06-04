@@ -19,7 +19,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="cancellationToken">A token, cancelled on shutdown, passed through to each invoked handler.</param>
         /// <returns><c>true</c> if at least one handler's topic filter matched; otherwise <c>false</c>.</returns>
         Task<bool> DispatchAsync(MqttApplicationMessage message,
-                                 IServiceProviderPublish publisher,
+                                 IServiceProviderPublisher publisher,
                                  HandlerConfiguration[] handlers,
                                  Guid correlationId,
                                  CancellationToken cancellationToken);

@@ -17,23 +17,10 @@ namespace Vion.ServiceProvider.Sdk.Services
     /// </summary>
     public sealed class ServiceStatePublisher : IServiceStatePublisher
     {
-        private readonly string _installationTopic;
-
-        private readonly string _serviceProviderIdentifier;
-
         private readonly ConcurrentDictionary<TopicKey, string> _topicByField = new();
 
-        /// <summary>Initializes a new instance of the <see cref="ServiceStatePublisher" /> class.</summary>
-        /// <param name="installationTopic">The installation topic, known after registration acceptance.</param>
-        /// <param name="serviceProviderIdentifier">This service provider's identifier.</param>
-        public ServiceStatePublisher(string installationTopic, string serviceProviderIdentifier)
-        {
-            _installationTopic = installationTopic;
-            _serviceProviderIdentifier = serviceProviderIdentifier;
-        }
-
         /// <inheritdoc />
-        public Task PublishFieldAsync(IServiceProviderPublish publisher, string serviceIdentifier, IServiceField field, JsonNode? value, CancellationToken cancellationToken)
+        public Task PublishFieldAsync(IServiceProviderPublisher publisher, string serviceIdentifier, IServiceField field, JsonNode? value, CancellationToken cancellationToken)
         {
             var publishedValue = field.IsWriteOnly && value is not null ? JsonValue.Create(WriteOnlyConventions.RedactedSentinel) : value;
             var payload = PropertyValueCodec.JsonToFlatBuffer(publishedValue, field.Schema.Type);
@@ -41,7 +28,7 @@ namespace Vion.ServiceProvider.Sdk.Services
             var topicKey = new TopicKey(serviceIdentifier, field);
             if (!_topicByField.TryGetValue(topicKey, out var topic))
             {
-                topic = BuildTopic(serviceIdentifier, field);
+                topic = BuildTopic(publisher, serviceIdentifier, field);
                 _topicByField[topicKey] = topic;
             }
 
@@ -55,7 +42,7 @@ namespace Vion.ServiceProvider.Sdk.Services
                                                  true);
         }
 
-        private string BuildTopic(string serviceIdentifier, IServiceField field)
+        private static string BuildTopic(IServiceProviderPublisher publisher, string serviceIdentifier, IServiceField field)
         {
             var topicSuffix = field.Kind switch
             {
@@ -64,7 +51,16 @@ namespace Vion.ServiceProvider.Sdk.Services
                 _ => throw new InvalidOperationException($"Unknown field kind '{field.Kind}' on field '{field.Name}'."),
             };
 
-            return $"{_installationTopic}/{_serviceProviderIdentifier}/{serviceIdentifier}/{field.Name}{topicSuffix}";
+            var installationTopic = publisher.InstallationTopic ?? throw NotOperational(nameof(IServiceProviderPublisher.InstallationTopic));
+            var serviceProviderIdentifier = publisher.ServiceProviderIdentifier ?? throw NotOperational(nameof(IServiceProviderPublisher.ServiceProviderIdentifier));
+
+            return $"{installationTopic}/{serviceProviderIdentifier}/{serviceIdentifier}/{field.Name}{topicSuffix}";
+
+            static InvalidOperationException NotOperational(string member)
+            {
+                return new
+                    InvalidOperationException($"{member} is unavailable — the service provider is not operational yet. Publish service state from WithOnOperationalReady or a message handler, where the publish surface is operational.");
+            }
         }
 
         private readonly record struct TopicKey(string ServiceIdentifier, IServiceField Field);

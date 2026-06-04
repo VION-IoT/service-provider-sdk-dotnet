@@ -36,7 +36,7 @@ namespace Vion.ServiceProvider.Sdk.Test.SystemControl
             var message = MqttApplicationMessageBuilder.BuildJson(Guid.NewGuid().ToString(), payload, nameof(SetLogLevelPayload));
 
             // Act — the correlation ID is the one the boundary extracted and passes to every handler.
-            await _sut.HandleAsync(Mock.Of<IServiceProviderPublish>(), message, Guid.NewGuid(), CancellationToken.None);
+            await _sut.HandleAsync(Mock.Of<IServiceProviderPublisher>(), message, Guid.NewGuid(), CancellationToken.None);
 
             // Assert
             Assert.AreEqual(requested, LogLevelManager.CurrentLevel);

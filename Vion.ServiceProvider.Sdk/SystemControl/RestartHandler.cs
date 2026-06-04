@@ -36,7 +36,7 @@ namespace Vion.ServiceProvider.Sdk.SystemControl
         /// <param name="message">The received MQTT restart message (unused — the command carries no payload).</param>
         /// <param name="correlationId">The correlation identifier for tracking the message flow.</param>
         /// <param name="cancellationToken">A token, canceled on shutdown (unused).</param>
-        public Task HandleAsync(IServiceProviderPublish publisher, MqttApplicationMessage message, Guid correlationId, CancellationToken cancellationToken)
+        public Task HandleAsync(IServiceProviderPublisher publisher, MqttApplicationMessage message, Guid correlationId, CancellationToken cancellationToken)
         {
             LogShuttingDown(correlationId);
 

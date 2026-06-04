@@ -35,7 +35,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
     /// <summary>
     ///     Implementation of the service provider client that handles MQTT communication, registration, and message publishing.
     /// </summary>
-    public partial class ServiceProviderClient : IServiceProviderClient, IServiceProviderClientHandler, IAsyncDisposable
+    public partial class ServiceProviderClient : IServiceProviderClient, IAsyncDisposable
     {
         private static readonly ObjectPool<MqttApplicationMessage> MessagePool = new(static () => new MqttApplicationMessage
                                                                                                   {
@@ -265,7 +265,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                                             HealthStatus healthStatus,
                                                                             DateTime? since,
                                                                             string? reason,
-                                                                            IServiceProviderClientHandler client,
+                                                                            IServiceProviderPublisher client,
                                                                             Guid correlationId,
                                                                             bool retain,
                                                                             CancellationToken cancellationToken)
@@ -578,13 +578,13 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             RegisterHandler(logLevelTopic, _configuration.OnLogLevelChangeCallback ?? DefaultSetLogLevelAsync, newHandlers);
         }
 
-        private Task DefaultSetLogLevelAsync(IServiceProviderPublish publisher, MqttApplicationMessage message, Guid correlationId, CancellationToken cancellationToken)
+        private Task DefaultSetLogLevelAsync(IServiceProviderPublisher publisher, MqttApplicationMessage message, Guid correlationId, CancellationToken cancellationToken)
         {
             LogLogLevelHandlerNotConfigured(correlationId);
             return Task.CompletedTask;
         }
 
-        private Task DefaultRestartAsync(IServiceProviderPublish publisher, MqttApplicationMessage message, Guid correlationId, CancellationToken cancellationToken)
+        private Task DefaultRestartAsync(IServiceProviderPublisher publisher, MqttApplicationMessage message, Guid correlationId, CancellationToken cancellationToken)
         {
             LogRestartHandlerNotConfigured(correlationId);
             return Task.CompletedTask;

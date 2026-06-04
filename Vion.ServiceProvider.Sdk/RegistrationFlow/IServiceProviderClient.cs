@@ -9,7 +9,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
     /// <summary>
     ///     Defines the contract for a service provider client that handles MQTT communication and registration flow.
     /// </summary>
-    public interface IServiceProviderClient : IServiceProviderPublish
+    public interface IServiceProviderClient : IServiceProviderPublisher
     {
         /// <summary>
         ///     Event triggered when an MQTT application message is received and not handled by any registered handler.
@@ -56,7 +56,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                                HealthStatus healthStatus,
                                                                DateTime? since,
                                                                string? reason,
-                                                               IServiceProviderClientHandler client,
+                                                               IServiceProviderPublisher client,
                                                                Guid correlationId,
                                                                bool retain,
                                                                CancellationToken cancellationToken);

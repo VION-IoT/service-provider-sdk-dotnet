@@ -26,7 +26,7 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
 
         private static readonly string SvcId = Guid.NewGuid().ToString();
 
-        private readonly Mock<IServiceProviderPublish> _publisherMock = new();
+        private readonly Mock<IServiceProviderPublisher> _publisherMock = new();
 
         private ServiceStatePublisher _sut = null!;
 
@@ -43,7 +43,9 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
         [TestInitialize]
         public void Initialize()
         {
-            _sut = new ServiceStatePublisher(InstallationTopic, SpId);
+            _publisherMock.SetupGet(publisher => publisher.InstallationTopic).Returns(InstallationTopic);
+            _publisherMock.SetupGet(publisher => publisher.ServiceProviderIdentifier).Returns(SpId);
+            _sut = new ServiceStatePublisher();
         }
 
         [TestMethod]

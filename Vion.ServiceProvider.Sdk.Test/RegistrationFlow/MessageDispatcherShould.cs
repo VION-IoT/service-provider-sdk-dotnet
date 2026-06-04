@@ -13,7 +13,7 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
     {
         private readonly Mock<ILogger> _loggerMock = new();
 
-        private readonly Mock<IServiceProviderPublish> _publisherMock = new();
+        private readonly Mock<IServiceProviderPublisher> _publisherMock = new();
 
         private int _handlerInvocationCount;
 
