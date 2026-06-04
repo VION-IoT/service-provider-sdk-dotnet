@@ -587,8 +587,14 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         private async Task InternalUpdateSubscriptionAsync(HandlerConfiguration[] handlers, CancellationToken cancellationToken)
         {
-            var topics = handlers.Select(h => h.TopicFilter).ToHashSet();
-            _currentClientSubscriptionOptions = new MqttClientSubscribeOptions { TopicFilters = topics.Select(t => new MqttTopicFilterBuilder().WithTopic(t).Build()).ToList() };
+            _currentClientSubscriptionOptions = new MqttClientSubscribeOptions
+                                                {
+                                                    TopicFilters = handlers
+                                                                   .Select(handler => new MqttTopicFilterBuilder().WithTopic(handler.TopicFilter)
+                                                                                                                  .WithNoLocal(handler.NoLocal)
+                                                                                                                  .Build())
+                                                                   .ToList(),
+                                                };
             var subscribeResult = await _operationalClient.SubscribeAsync(_currentClientSubscriptionOptions, cancellationToken);
             if (_logger.IsEnabled(LogLevel.Information))
             {

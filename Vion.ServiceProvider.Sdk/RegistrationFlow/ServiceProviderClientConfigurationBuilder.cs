@@ -189,7 +189,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
     /// <summary>
     ///     Configuration for a message handler including topic matching and handler function.
     /// </summary>
-    public record HandlerConfiguration(string TopicPartToMatch, ServiceProviderMessageHandler Handler, bool IsContractTopic, string? TopicFilter = null)
+    public record HandlerConfiguration(string TopicPartToMatch, ServiceProviderMessageHandler Handler, bool IsContractTopic, string? TopicFilter = null, bool NoLocal = true)
     {
         /// <summary>
         ///     Gets or sets the MQTT topic filter for subscription.
@@ -226,7 +226,13 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         ///     semantics.
         /// </param>
         /// <param name="handler">The handler function to process messages.</param>
-        void WithHandler(string topic, ServiceProviderMessageHandler handler);
+        /// <param name="noLocal">
+        ///     When <c>true</c> (the default), the broker does not deliver back messages this service provider itself
+        ///     published, so the handler never receives the SP's own publications on a matching topic, and they need not be
+        ///     filtered out. When <c>false</c>, messages this service provider publishes are also delivered (the MQTT
+        ///     "No Local" subscription option).
+        /// </param>
+        void WithHandler(string topic, ServiceProviderMessageHandler handler, bool noLocal = true);
 
         /// <summary>
         ///     This adds a handler for the contract topic. It will subscribe following topic:
@@ -235,9 +241,13 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="service">The service part of the topic</param>
         /// <param name="contract">The contract part of the topic</param>
         /// <param name="handler">The handler to process the contract specific topics</param>
-
-        // {installationTopic}/{serviceProviderIdentifier}/{service}/{contract}/{contract-specific-path}
-        void WithContractHandler(string service, string contract, ServiceProviderMessageHandler handler);
+        /// <param name="noLocal">
+        ///     When <c>true</c> (the default), the broker does not deliver back messages this service provider itself
+        ///     published, so the handler never receives the SP's own publications on a matching topic, and they need not be
+        ///     filtered out. When <c>false</c>, messages this service provider publishes are also delivered (the MQTT
+        ///     "No Local" subscription option).
+        /// </param>
+        void WithContractHandler(string service, string contract, ServiceProviderMessageHandler handler, bool noLocal = true);
 
         /// <summary>
         ///     Sets the health check evaluator function for monitoring service health.
@@ -287,24 +297,16 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         public string ServiceProviderIdentifier { get; }
 
         /// <inheritdoc />
-        public void WithHandler(string topic, ServiceProviderMessageHandler handler)
+        public void WithHandler(string topic, ServiceProviderMessageHandler handler, bool noLocal = true)
         {
-            ConfigHandlers.Add(new HandlerConfiguration(topic, handler, false));
+            ConfigHandlers.Add(new HandlerConfiguration(topic, handler, false, NoLocal: noLocal));
         }
 
-        /// <summary>
-        ///     This adds a handler for the contract topic. It will subscribe following topic:
-        ///     {installationTopic}/{serviceProviderIdentifier}/{service}/{contract}/#
-        /// </summary>
-        /// <param name="service">The service part of the topic</param>
-        /// <param name="contract">The contract part of the topic</param>
-        /// <param name="handler">The handler to process the contract specific topics</param>
-
-        // {installationTopic}/{serviceProviderIdentifier}/{service}/{contract}/{contract-specific-path}
-        public void WithContractHandler(string service, string contract, ServiceProviderMessageHandler handler)
+        /// <inheritdoc />
+        public void WithContractHandler(string service, string contract, ServiceProviderMessageHandler handler, bool noLocal = true)
         {
             var topicPartToMatch = $"{service}/{contract}";
-            ConfigHandlers.Add(new HandlerConfiguration(topicPartToMatch, handler, true));
+            ConfigHandlers.Add(new HandlerConfiguration(topicPartToMatch, handler, true, NoLocal: noLocal));
         }
 
         /// <summary>
