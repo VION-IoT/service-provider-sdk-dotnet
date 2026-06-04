@@ -110,9 +110,9 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="mqttClientFactory">The factory for creating MQTT clients.</param>
         /// <param name="logger">The logger instance.</param>
         public ServiceProviderClient(ServiceProviderClientConfiguration configuration, MqttClientFactory mqttClientFactory, ILogger logger) : this(configuration,
-            mqttClientFactory,
-            logger,
-            new MessageDispatcher(logger))
+                                                                                                                                                   mqttClientFactory,
+                                                                                                                                                   logger,
+                                                                                                                                                   new MessageDispatcher(logger))
         {
         }
 
@@ -558,7 +558,14 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             RegisterHandler(restartTopic, _configuration.OnRestartCallback ?? DefaultRestartAsync, newHandlers);
 
             var logLevelTopic = ServiceProviderTopics.LogLevelSetTopic(_operationalData!.InstallationTopic, _operationalData.ConnectionData.ServiceProviderIdentifier);
-            RegisterHandler(logLevelTopic, _configuration.OnLogLevelChangeCallback ?? DefaultSetLogLevelAsync, newHandlers);
+            RegisterHandler(logLevelTopic, HandleLogLevelSetAsync, newHandlers);
+        }
+
+        private async Task HandleLogLevelSetAsync(IServiceProviderPublisher publisher, MqttApplicationMessage message, Guid correlationId, CancellationToken cancellationToken)
+        {
+            var logLevelChangeCallback = _configuration.OnLogLevelChangeCallback ?? DefaultSetLogLevelAsync;
+            await logLevelChangeCallback(publisher, message, correlationId, cancellationToken);
+            await PublishLogLevelStateAsync();
         }
 
         private Task DefaultSetLogLevelAsync(IServiceProviderPublisher publisher, MqttApplicationMessage message, Guid correlationId, CancellationToken cancellationToken)
