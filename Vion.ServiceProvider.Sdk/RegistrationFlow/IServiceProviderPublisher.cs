@@ -37,16 +37,21 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="payload">The message payload. May be empty for a payload-less signal.</param>
         /// <param name="qos">The MQTT quality-of-service level.</param>
         /// <param name="retain">Whether the broker should retain the message.</param>
-        /// <returns>The MQTT publish result.</returns>
+        /// <returns><c>true</c> if the message was handed to a connected broker; <c>false</c> if it could not be published.</returns>
         /// <exception cref="ArgumentException">Thrown when <paramref name="payload" /> is non-empty but <paramref name="schema" /> or <paramref name="contentType" /> is missing.</exception>
-        Task<MqttClientPublishResult> PublishMessageAsync(string topic,
-                                                          Guid correlationId,
-                                                          CancellationToken cancellationToken,
-                                                          string? contentType = null,
-                                                          string? schema = null,
-                                                          ReadOnlyMemory<byte> payload = default,
-                                                          MqttQualityOfServiceLevel qos = MqttQualityOfServiceLevel.AtMostOnce,
-                                                          bool retain = false);
+        /// <remarks>
+        ///     Publishing does not throw on connection or transport failures — those are logged by the SDK and reported through
+        ///     the <c>bool</c> result, so callers need not wrap publishes in try/catch. Passing a non-empty payload without a
+        ///     schema or content type is a usage error and still throws <see cref="ArgumentException" />.
+        /// </remarks>
+        Task<bool> PublishMessageAsync(string topic,
+                                       Guid correlationId,
+                                       CancellationToken cancellationToken,
+                                       string? contentType = null,
+                                       string? schema = null,
+                                       ReadOnlyMemory<byte> payload = default,
+                                       MqttQualityOfServiceLevel qos = MqttQualityOfServiceLevel.AtMostOnce,
+                                       bool retain = false);
 
         /// <summary>
         ///     Publishes a request/response message, adding the <c>status</c> (and optional <c>error_code</c> / <c>error_message</c>)
@@ -62,17 +67,22 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="errorCode">The optional <c>error_code</c> user-property value.</param>
         /// <param name="errorMessage">The optional <c>error_message</c> user-property value.</param>
         /// <param name="qos">The MQTT quality-of-service level.</param>
-        /// <returns>The MQTT publish result.</returns>
+        /// <returns><c>true</c> if the message was handed to a connected broker; <c>false</c> if it could not be published.</returns>
         /// <exception cref="ArgumentException">Thrown when <paramref name="payload" /> is non-empty but <paramref name="schema" /> or <paramref name="contentType" /> is missing.</exception>
-        Task<MqttClientPublishResult> PublishResponseAsync(string topic,
-                                                           RequestStatus status,
-                                                           Guid correlationId,
-                                                           CancellationToken cancellationToken,
-                                                           string? contentType = null,
-                                                           string? schema = null,
-                                                           ReadOnlyMemory<byte> payload = default,
-                                                           string? errorCode = null,
-                                                           string? errorMessage = null,
-                                                           MqttQualityOfServiceLevel qos = MqttQualityOfServiceLevel.AtMostOnce);
+        /// <remarks>
+        ///     Publishing does not throw on connection or transport failures — those are logged by the SDK and reported through
+        ///     the <c>bool</c> result, so callers need not wrap publishes in try/catch. Passing a non-empty payload without a
+        ///     schema or content type is a usage error and still throws <see cref="ArgumentException" />.
+        /// </remarks>
+        Task<bool> PublishResponseAsync(string topic,
+                                        RequestStatus status,
+                                        Guid correlationId,
+                                        CancellationToken cancellationToken,
+                                        string? contentType = null,
+                                        string? schema = null,
+                                        ReadOnlyMemory<byte> payload = default,
+                                        string? errorCode = null,
+                                        string? errorMessage = null,
+                                        MqttQualityOfServiceLevel qos = MqttQualityOfServiceLevel.AtMostOnce);
     }
 }

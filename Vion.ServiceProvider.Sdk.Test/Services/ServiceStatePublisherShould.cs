@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Google.FlatBuffers;
 using Moq;
-using MQTTnet;
 using MQTTnet.Protocol;
 using Vion.Contracts.Codec;
 using Vion.Contracts.Conventions;
@@ -136,7 +135,7 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
                                                                                 payload.ToArray(),
                                                                                 qos,
                                                                                 retain))
-                          .ReturnsAsync(new MqttClientPublishResult(0, MqttClientPublishReasonCode.Success, null, null));
+                          .ReturnsAsync(true);
 
             await _sut.PublishFieldAsync(_publisherMock.Object, SvcId, field, value, CancellationToken.None);
             return captured;

@@ -50,16 +50,21 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="correlationId">The correlation identifier for tracking the message flow.</param>
         /// <param name="retain">Whether the message should be retained by the broker.</param>
         /// <param name="cancellationToken">Cancellation token for the operation.</param>
-        /// <returns>A task representing the asynchronous operation.</returns>
-        Task<MqttClientPublishResult> PublishHealthStatusAsync(string topic,
-                                                               ConnectionStatus connectionStatus,
-                                                               HealthStatus healthStatus,
-                                                               DateTime? since,
-                                                               string? reason,
-                                                               IServiceProviderPublisher client,
-                                                               Guid correlationId,
-                                                               bool retain,
-                                                               CancellationToken cancellationToken);
+        /// <returns><c>true</c> if the health status was handed to a connected broker; otherwise <c>false</c>.</returns>
+        /// <remarks>
+        ///     Publishing does not throw on connection or transport failures — those are logged by the SDK and reported through
+        ///     the <c>bool</c> result, so callers need not wrap publishes in try/catch. Passing a non-empty payload without a
+        ///     schema or content type is a usage error and still throws <see cref="ArgumentException" />.
+        /// </remarks>
+        Task<bool> PublishHealthStatusAsync(string topic,
+                                            ConnectionStatus connectionStatus,
+                                            HealthStatus healthStatus,
+                                            DateTime? since,
+                                            string? reason,
+                                            IServiceProviderPublisher client,
+                                            Guid correlationId,
+                                            bool retain,
+                                            CancellationToken cancellationToken);
 
         /// <summary>
         ///     Publishes the current log level state of the service provider.
