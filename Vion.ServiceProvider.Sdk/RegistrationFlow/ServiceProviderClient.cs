@@ -110,10 +110,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="configuration">The service provider client configuration.</param>
         /// <param name="mqttClientFactory">The factory for creating MQTT clients.</param>
         /// <param name="logger">The logger instance.</param>
-        public ServiceProviderClient(ServiceProviderClientConfiguration configuration, MqttClientFactory mqttClientFactory, ILogger logger) : this(configuration,
-                                                                                                                                                   mqttClientFactory,
-                                                                                                                                                   logger,
-                                                                                                                                                   new MessageDispatcher(logger))
+        public ServiceProviderClient(ServiceProviderClientConfiguration configuration, MqttClientFactory mqttClientFactory, ILogger logger) // @formatter:off
+            : this(configuration, mqttClientFactory, logger, new MessageDispatcher(logger)) // @formatter:on
         {
         }
 
