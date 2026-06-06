@@ -50,6 +50,12 @@ review `git diff`, and commit any changes** — this keeps the CI style gate fro
 `--profile="Built-in: Reformat Code"` — it differs from the DotSettings profile and fights
 cleanup-on-save.
 
+**Formatter escape hatch:** for the rare span where `cleanupcode` formats inconsistently
+across OSes (local vs the Linux CI runner) or where you intentionally hand-format (e.g. an
+aligned table), wrap it in `// @formatter:off` / `// @formatter:on` with a short reason
+comment — `cleanupcode` honors these on every OS, so the style gate stays green. Use it
+sparingly and locally, never to opt a whole file out.
+
 ## Where stuff lives
 
 | Path | Holds |
