@@ -22,7 +22,8 @@ namespace Vion.ServiceProvider.Sdk.SystemControl
         }
 
         /// <summary>
-        ///     Initializes <see cref="CurrentLevel" /> from the configuration value, if present and parseable. Leaves the current value unchanged otherwise.
+        ///     Initializes <see cref="CurrentLevel" /> from the configuration value, if present and parseable. Leaves the current
+        ///     value unchanged otherwise.
         /// </summary>
         /// <param name="configuration">The configuration to read the default log level from.</param>
         public static void InitializeFromConfig(IConfiguration configuration)

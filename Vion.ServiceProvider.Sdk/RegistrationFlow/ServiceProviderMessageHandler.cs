@@ -13,5 +13,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
     /// <param name="correlationId">The correlation identifier for tracking the message flow.</param>
     /// <param name="cancellationToken">A token that is cancelled when the service provider is shutting down.</param>
     /// <returns>A task representing the asynchronous handling of the message.</returns>
-    public delegate Task ServiceProviderMessageHandler(IServiceProviderPublisher publisher, MqttApplicationMessage message, Guid correlationId, CancellationToken cancellationToken);
+    public delegate Task ServiceProviderMessageHandler(IServiceProviderPublisher publisher,
+                                                       MqttApplicationMessage message,
+                                                       Guid correlationId,
+                                                       CancellationToken cancellationToken);
 }

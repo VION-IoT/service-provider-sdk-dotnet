@@ -33,7 +33,8 @@ using MqttUserProperty = MQTTnet.Packets.MqttUserProperty;
 namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 {
     /// <summary>
-    ///     Implementation of the service provider client that handles MQTT communication, registration, and message publishing.
+    ///     Implementation of the service provider client that handles MQTT communication, registration, and message
+    ///     publishing.
     /// </summary>
     public partial class ServiceProviderClient : IServiceProviderClient, IAsyncDisposable
     {

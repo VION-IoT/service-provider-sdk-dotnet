@@ -222,7 +222,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         ///     Adds a handler for a specific topic.
         /// </summary>
         /// <param name="topic">
-        ///     The MQTT topic filter to handle. Wildcards <c>+</c> (single level) and <c>#</c> (multi level) are permitted; matching uses MQTT's standard topic-filter
+        ///     The MQTT topic filter to handle. Wildcards <c>+</c> (single level) and <c>#</c> (multi level) are permitted;
+        ///     matching uses MQTT's standard topic-filter
         ///     semantics.
         /// </param>
         /// <param name="handler">The handler function to process messages.</param>
@@ -377,7 +378,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         }
 
         /// <summary>
-        ///     Overrides the default <c>restart</c> handler. Optional — when not called, the SDK's default restart handler is used.
+        ///     Overrides the default <c>restart</c> handler. Optional — when not called, the SDK's default restart handler is
+        ///     used.
         /// </summary>
         /// <param name="onRestartCallback">The handler invoked on a restart command.</param>
         /// <returns>This builder, for chaining.</returns>
