@@ -1,5 +1,9 @@
+using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text.Json.Nodes;
+using Vion.Contracts.TypeRef;
+using Vion.ServiceProvider.Sdk.Services;
 using Vion.ServiceProvider.Sdk.Test.TestHelpers;
 
 namespace Vion.ServiceProvider.Sdk.Test.Services
@@ -24,12 +28,49 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
         }
 
         [TestMethod]
-        public void PreserveWriteOnlyInTheEmittedPropertySchema()
+        public void CarryUnitReadOnlyAndWriteOnlyInsideTheEmittedSchema()
         {
-            var service = new TestSchema().BuildServiceInfo();
+            var service = new AnnotatedSchema().BuildServiceInfo();
+
+            var voltage = service.Properties!.Single(p => p.Identifier == "Voltage");
+            Assert.AreEqual("V", voltage.Schema["x-unit"]!.GetValue<string>());
+
+            var serial = service.Properties!.Single(p => p.Identifier == "Serial");
+            Assert.IsTrue(serial.Schema["readOnly"]!.GetValue<bool>());
 
             var secret = service.Properties!.Single(p => p.Identifier == "Secret");
             Assert.IsTrue(secret.Schema["writeOnly"]!.GetValue<bool>());
+        }
+
+        private sealed class AnnotatedSchema : ServiceSchema<object>
+        {
+            public override string ServiceIdentifier
+            {
+                get => "annotated";
+            }
+
+            protected override string ServiceDescription
+            {
+                get => "annotated";
+            }
+
+            public override IReadOnlyList<IServiceField<object>> All
+            {
+                get =>
+                [
+                    Field("Voltage",
+                          new TypeSchema(new PrimitiveTypeRef(PrimitiveKind.Double), new TypeAnnotations { Unit = "V" }, ImmutableDictionary<string, TypeAnnotations>.Empty)),
+                    Field("Serial",
+                          new TypeSchema(new PrimitiveTypeRef(PrimitiveKind.String), new TypeAnnotations { ReadOnly = true }, ImmutableDictionary<string, TypeAnnotations>.Empty)),
+                    Field("Secret",
+                          new TypeSchema(new PrimitiveTypeRef(PrimitiveKind.String), new TypeAnnotations { WriteOnly = true }, ImmutableDictionary<string, TypeAnnotations>.Empty)),
+                ];
+            }
+
+            private static IServiceField<object> Field(string name, TypeSchema schema)
+            {
+                return new ServiceField<object>(name, ServiceFieldKind.Property, schema, _ => null, (state, _) => state);
+            }
         }
     }
 }
