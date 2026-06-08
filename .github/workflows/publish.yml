@@ -1,10 +1,12 @@
 name: Pack & Publish
-# Builds and packs the Vion.ServiceProvider.Sdk on every push to main, pushes
-# intermediate packages to the VION private feed, and on a vX.Y.Z tag push
-# also publishes to nuget.org using NUGET_API_KEY.
+# Builds, tests, and verifies code style, then packs the Vion.ServiceProvider.Sdk on
+# every push to main, pushes intermediate packages to the VION private feed, and on a
+# vX.Y.Z tag push also publishes to nuget.org using NUGET_API_KEY.
 #
-# Pipeline logic lives in VION-IoT/shared-workflows. See that repo for the
-# input contract and version-pinning policy.
+# The build/test/style gate (gate: true) runs in the pack job on every PR/main/tag,
+# reusing the one build — see CLAUDE.md (Code Style) and VION-IoT/shared-workflows
+# actions/dotnet-gate. Pipeline logic lives in VION-IoT/shared-workflows; see that repo
+# for the input contract and version-pinning policy.
 
 on:
   push:
@@ -18,24 +20,12 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-      - uses: VION-IoT/shared-workflows/actions/setup-nuget-private-feed@v1
-        with:
-          pat: ${{ secrets.AZURE_DEVOPS_PAT }}
-      - name: Test
-        run: dotnet test Vion.ServiceProvider.Sdk.slnx -c Release
-
   publish:
-    needs: test
     uses: VION-IoT/shared-workflows/.github/workflows/publish-nuget.yml@v1
     with:
-      solution: Vion.ServiceProvider.Sdk.slnx
+      solution: Vion.ServiceProvider.Sdk.sln
+      # Build + test + ReSharper cleanupcode style gate before packing, in the pack job
+      # (one build). Requires the cleanup setup in this repo (.config/dotnet-tools.json,
+      # scripts/cleanup-code.ps1, Vion.ServiceProvider.Sdk.sln.DotSettings).
+      gate: true
     secrets: inherit

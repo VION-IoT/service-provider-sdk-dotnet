@@ -20,12 +20,41 @@ for what an SP is.
 ## Build / test
 
 ```powershell
-dotnet build Vion.ServiceProvider.Sdk.slnx
-dotnet test Vion.ServiceProvider.Sdk.slnx
+dotnet build Vion.ServiceProvider.Sdk.sln
+dotnet test Vion.ServiceProvider.Sdk.sln
 ```
 
 Targets `net10.0`. The choice is driven by `MQTTnet`'s own targets — if
 the upstream MQTT client adds a netstandard build, we'd happily follow.
+
+## Code Style
+
+- C# with `ImplicitUsings: false` (all usings explicit).
+- `Nullable: enabled`.
+- Code cleanup: **ReSharper `cleanupcode`** with the `Custom: Full Cleanup (excl. optimize usings)` profile (JetBrains CLI) — see the cleanup note below. Do NOT use the `Built-in: Reformat Code` profile.
+- Allman brace style throughout.
+- Targets `net10.0`.
+
+Code style is **ReSharper cleanupcode** with the `Custom: Full Cleanup (excl. optimize usings)`
+profile in `Vion.ServiceProvider.Sdk.sln.DotSettings` — the same profile ReSharper/Rider apply on
+save. The single source of truth is **`scripts/cleanup-code.ps1`**: it restores the pinned `jb`
+tool (`.config/dotnet-tools.json`) and runs the exact cleanup. CI runs the same script with
+`-Verify` (fails on drift) via the shared `VION-IoT/shared-workflows` gate:
+`.github/workflows/publish.yml` calls `publish-nuget.yml` with `gate: true`, which runs
+`scripts/cleanup-code.ps1 -Verify` (the `dotnet-gate` composite) before packing — so local and CI
+can't diverge.
+
+**Before opening a PR: run `pwsh scripts/cleanup-code.ps1` (or the `/cleanup` slash command),
+review `git diff`, and commit any changes** — this keeps the CI style gate from failing the PR.
+**Agents: do this automatically before `gh pr create`.** Do NOT run cleanup with
+`--profile="Built-in: Reformat Code"` — it differs from the DotSettings profile and fights
+cleanup-on-save.
+
+**Formatter escape hatch:** for the rare span where `cleanupcode` formats inconsistently
+across OSes (local vs the Linux CI runner) or where you intentionally hand-format (e.g. an
+aligned table), wrap it in `// @formatter:off` / `// @formatter:on` with a short reason
+comment — `cleanupcode` honors these on every OS, so the style gate stays green. Use it
+sparingly and locally, never to opt a whole file out.
 
 ## Where stuff lives
 

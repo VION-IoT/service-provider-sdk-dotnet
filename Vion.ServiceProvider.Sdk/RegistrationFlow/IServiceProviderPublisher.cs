@@ -33,12 +33,18 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="correlationId">The correlation identifier for tracking the message flow.</param>
         /// <param name="cancellationToken">A token to cancel the publish.</param>
         /// <param name="contentType">The content type of the payload. Required when <paramref name="payload" /> is non-empty.</param>
-        /// <param name="schema">The <c>schema</c> user-property value for the payload. Required when <paramref name="payload" /> is non-empty.</param>
+        /// <param name="schema">
+        ///     The <c>schema</c> user-property value for the payload. Required when <paramref name="payload" />
+        ///     is non-empty.
+        /// </param>
         /// <param name="payload">The message payload. May be empty for a payload-less signal.</param>
         /// <param name="qos">The MQTT quality-of-service level.</param>
         /// <param name="retain">Whether the broker should retain the message.</param>
         /// <returns><c>true</c> if the message was handed to a connected broker; <c>false</c> if it could not be published.</returns>
-        /// <exception cref="ArgumentException">Thrown when <paramref name="payload" /> is non-empty but <paramref name="schema" /> or <paramref name="contentType" /> is missing.</exception>
+        /// <exception cref="ArgumentException">
+        ///     Thrown when <paramref name="payload" /> is non-empty but <paramref name="schema" />
+        ///     or <paramref name="contentType" /> is missing.
+        /// </exception>
         /// <remarks>
         ///     Publishing does not throw on connection or transport failures — those are logged by the SDK and reported through
         ///     the <c>bool</c> result, so callers need not wrap publishes in try/catch. Passing a non-empty payload without a
@@ -54,7 +60,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                        bool retain = false);
 
         /// <summary>
-        ///     Publishes a request/response message, adding the <c>status</c> (and optional <c>error_code</c> / <c>error_message</c>)
+        ///     Publishes a request/response message, adding the <c>status</c> (and optional <c>error_code</c> /
+        ///     <c>error_message</c>)
         ///     user properties alongside the contract metadata.
         /// </summary>
         /// <param name="topic">The MQTT topic to publish the response to.</param>
@@ -62,13 +69,19 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="correlationId">The correlation identifier for tracking the message flow.</param>
         /// <param name="cancellationToken">A token to cancel the publish.</param>
         /// <param name="contentType">The content type of the payload. Required when <paramref name="payload" /> is non-empty.</param>
-        /// <param name="schema">The <c>schema</c> user-property value for the payload. Required when <paramref name="payload" /> is non-empty.</param>
+        /// <param name="schema">
+        ///     The <c>schema</c> user-property value for the payload. Required when <paramref name="payload" />
+        ///     is non-empty.
+        /// </param>
         /// <param name="payload">The response payload. May be empty for a status-only response.</param>
         /// <param name="errorCode">The optional <c>error_code</c> user-property value.</param>
         /// <param name="errorMessage">The optional <c>error_message</c> user-property value.</param>
         /// <param name="qos">The MQTT quality-of-service level.</param>
         /// <returns><c>true</c> if the message was handed to a connected broker; <c>false</c> if it could not be published.</returns>
-        /// <exception cref="ArgumentException">Thrown when <paramref name="payload" /> is non-empty but <paramref name="schema" /> or <paramref name="contentType" /> is missing.</exception>
+        /// <exception cref="ArgumentException">
+        ///     Thrown when <paramref name="payload" /> is non-empty but <paramref name="schema" />
+        ///     or <paramref name="contentType" /> is missing.
+        /// </exception>
         /// <remarks>
         ///     Publishing does not throw on connection or transport failures — those are logged by the SDK and reported through
         ///     the <c>bool</c> result, so callers need not wrap publishes in try/catch. Passing a non-empty payload without a

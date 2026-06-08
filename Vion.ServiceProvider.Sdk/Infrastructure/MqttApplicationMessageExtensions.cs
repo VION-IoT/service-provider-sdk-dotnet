@@ -12,7 +12,8 @@ using Vion.Contracts.Mqtt;
 namespace Vion.ServiceProvider.Sdk.Infrastructure
 {
     /// <summary>
-    ///     Extension methods for reading VION's MQTT metadata (correlation ID, schema, payload) off an <see cref="MqttApplicationMessage" />.
+    ///     Extension methods for reading VION's MQTT metadata (correlation ID, schema, payload) off an
+    ///     <see cref="MqttApplicationMessage" />.
     /// </summary>
     public static class MqttApplicationMessageExtensions
     {
@@ -54,7 +55,8 @@ namespace Vion.ServiceProvider.Sdk.Infrastructure
             /// <returns>A span over the installation topic portion.</returns>
             /// <exception cref="InvalidInstallationTopicException">Thrown when the topic has fewer than four slash-delimited segments.</exception>
             /// <remarks>
-            ///     The installation topic is always the first four slash-delimited segments: <c>version/environment/tenantId/gatewayId</c>.
+            ///     The installation topic is always the first four slash-delimited segments:
+            ///     <c>version/environment/tenantId/gatewayId</c>.
             /// </remarks>
             public ReadOnlySpan<char> ExtractInstallationTopic()
             {
@@ -80,15 +82,18 @@ namespace Vion.ServiceProvider.Sdk.Infrastructure
             ///     topic.
             /// </summary>
             /// <param name="after">
-            ///     The substring after which segment extraction begins. Pass <see cref="ReadOnlySpan{T}.Empty" /> to start extraction at the beginning of the topic.
+            ///     The substring after which segment extraction begins. Pass <see cref="ReadOnlySpan{T}.Empty" /> to start extraction
+            ///     at the beginning of the topic.
             /// </param>
             /// <param name="before">
-            ///     The substring before which segment extraction ends. Pass <see cref="ReadOnlySpan{T}.Empty" /> to extract until the end of the topic.
+            ///     The substring before which segment extraction ends. Pass <see cref="ReadOnlySpan{T}.Empty" /> to extract until the
+            ///     end of the topic.
             /// </param>
             /// <param name="segmentCount">The exact number of segments expected between the two substrings.</param>
             /// <returns>An array containing the extracted segments.</returns>
             /// <exception cref="TopicSubstringNotFoundException">
-            ///     Thrown when a non-empty <paramref name="after" /> or a non-empty <paramref name="before" /> cannot be located in the topic.
+            ///     Thrown when a non-empty <paramref name="after" /> or a non-empty <paramref name="before" /> cannot be located in
+            ///     the topic.
             /// </exception>
             /// <exception cref="UnexpectedSegmentCountException">
             ///     Thrown when the number of segments between the two substrings does not equal <paramref name="segmentCount" />.
@@ -127,8 +132,14 @@ namespace Vion.ServiceProvider.Sdk.Infrastructure
             ///     Retrieves the correlation ID from the <see cref="MqttApplicationMessage.CorrelationData" />.
             /// </summary>
             /// <returns>The extracted correlation ID as a <see cref="Guid" />.</returns>
-            /// <exception cref="MissingCorrelationIdException">Thrown if <see cref="MqttApplicationMessage.CorrelationData" /> is <c>null</c>.</exception>
-            /// <exception cref="InvalidCorrelationIdFormatException">Thrown if the correlation ID is not in a supported format (16-byte array or 36-character string).</exception>
+            /// <exception cref="MissingCorrelationIdException">
+            ///     Thrown if <see cref="MqttApplicationMessage.CorrelationData" /> is
+            ///     <c>null</c>.
+            /// </exception>
+            /// <exception cref="InvalidCorrelationIdFormatException">
+            ///     Thrown if the correlation ID is not in a supported format
+            ///     (16-byte array or 36-character string).
+            /// </exception>
             public Guid GetCorrelationId()
             {
                 if (message.CorrelationData == null)
@@ -162,7 +173,10 @@ namespace Vion.ServiceProvider.Sdk.Infrastructure
             /// </param>
             /// <returns>A <see cref="ByteBuffer" /> containing the message payload, positioned at the start of the FlatBuffer object.</returns>
             /// <exception cref="PayloadEmptyException">Thrown if the message payload is empty.</exception>
-            /// <exception cref="UnsupportedContentTypeException">Thrown if the message content type is not <c>application/x-flatbuffers</c>.</exception>
+            /// <exception cref="UnsupportedContentTypeException">
+            ///     Thrown if the message content type is not
+            ///     <c>application/x-flatbuffers</c>.
+            /// </exception>
             /// <exception cref="MissingPayloadSchemaException">Thrown if the schema property is missing in the MQTT user properties.</exception>
             /// <exception cref="InvalidPayloadSchemaException">Thrown if the schema does not match <paramref name="expectedSchema" />.</exception>
             public ByteBuffer GetFlatBufferPayload(string expectedSchema)
@@ -188,8 +202,14 @@ namespace Vion.ServiceProvider.Sdk.Infrastructure
             /// <returns>The deserialized object of type <typeparamref name="T" />.</returns>
             /// <exception cref="PayloadEmptyException">Thrown if the message payload is empty.</exception>
             /// <exception cref="UnsupportedContentTypeException">Thrown if the message content type is not <c>application/json</c>.</exception>
-            /// <exception cref="MissingPayloadSchemaException">Thrown if the schema property is missing in the message user properties.</exception>
-            /// <exception cref="InvalidPayloadSchemaException">Thrown if the schema from the message does not match the expected schema.</exception>
+            /// <exception cref="MissingPayloadSchemaException">
+            ///     Thrown if the schema property is missing in the message user
+            ///     properties.
+            /// </exception>
+            /// <exception cref="InvalidPayloadSchemaException">
+            ///     Thrown if the schema from the message does not match the expected
+            ///     schema.
+            /// </exception>
             /// <exception cref="PayloadDeserializationException">Thrown if an exception occurs during JSON deserialization.</exception>
             /// <exception cref="PayloadNullAfterDeserializationException">Thrown if the deserialized object is null.</exception>
             public T GetJsonPayload<T>(JsonTypeInfo<T> typeInfo, string? expectedSchemaOverride = null)
@@ -228,9 +248,15 @@ namespace Vion.ServiceProvider.Sdk.Infrastructure
             /// <param name="expectedContentType">The expected content type of the message payload.</param>
             /// <param name="expectedSchema">The expected schema identifier of the message payload.</param>
             /// <exception cref="PayloadEmptyException">Thrown if the message payload is empty.</exception>
-            /// <exception cref="UnsupportedContentTypeException">Thrown if the message content type does not match <paramref name="expectedContentType" />.</exception>
+            /// <exception cref="UnsupportedContentTypeException">
+            ///     Thrown if the message content type does not match
+            ///     <paramref name="expectedContentType" />.
+            /// </exception>
             /// <exception cref="MissingPayloadSchemaException">Thrown if the schema user property is missing.</exception>
-            /// <exception cref="InvalidPayloadSchemaException">Thrown if the schema user property does not match <paramref name="expectedSchema" />.</exception>
+            /// <exception cref="InvalidPayloadSchemaException">
+            ///     Thrown if the schema user property does not match
+            ///     <paramref name="expectedSchema" />.
+            /// </exception>
             public void EnsureExpectedPayloadContract(string expectedContentType, string expectedSchema)
             {
                 message.EnsurePayloadNotEmpty();
@@ -303,7 +329,10 @@ namespace Vion.ServiceProvider.Sdk.Infrastructure
         }
     }
 
-    /// <summary>Thrown when a received message carries no correlation ID in its <see cref="MqttApplicationMessage.CorrelationData" />.</summary>
+    /// <summary>
+    ///     Thrown when a received message carries no correlation ID in its
+    ///     <see cref="MqttApplicationMessage.CorrelationData" />.
+    /// </summary>
     public sealed class MissingCorrelationIdException : Exception
     {
         /// <summary>Initializes the exception for a message with no correlation data.</summary>
@@ -312,7 +341,10 @@ namespace Vion.ServiceProvider.Sdk.Infrastructure
         }
     }
 
-    /// <summary>Thrown when correlation data is present but not a supported correlation-ID format (16-byte array or 36-character string).</summary>
+    /// <summary>
+    ///     Thrown when correlation data is present but not a supported correlation-ID format (16-byte array or
+    ///     36-character string).
+    /// </summary>
     public sealed class InvalidCorrelationIdFormatException : Exception
     {
         /// <summary>Initializes the exception for correlation data that is not a recognized correlation-ID format.</summary>

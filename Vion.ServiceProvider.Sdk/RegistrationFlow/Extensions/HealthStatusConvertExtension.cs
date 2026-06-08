@@ -8,7 +8,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow.Extensions
     public static class HealthStatusConvertExtension
     {
         /// <summary>
-        ///     Converts a <see cref="Contracts.Events.MeshToCloud.ConnectionStatus" /> to FlatBuffer <see cref="Vion.Contracts.FlatBuffers.System.Health.ConnectionStatus" />.
+        ///     Converts a <see cref="Contracts.Events.MeshToCloud.ConnectionStatus" /> to FlatBuffer
+        ///     <see cref="Vion.Contracts.FlatBuffers.System.Health.ConnectionStatus" />.
         /// </summary>
         /// <param name="connectionStatus">The connection status to convert.</param>
         /// <returns>The FlatBuffer connection status.</returns>
@@ -23,7 +24,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow.Extensions
         }
 
         /// <summary>
-        ///     Converts a <see cref="Contracts.Events.MeshToCloud.HealthStatus" /> to FlatBuffer <see cref="Vion.Contracts.FlatBuffers.System.Health.HealthStatus" />.
+        ///     Converts a <see cref="Contracts.Events.MeshToCloud.HealthStatus" /> to FlatBuffer
+        ///     <see cref="Vion.Contracts.FlatBuffers.System.Health.HealthStatus" />.
         /// </summary>
         /// <param name="healthStatus">The health status to convert.</param>
         /// <returns>The FlatBuffer health status.</returns>
