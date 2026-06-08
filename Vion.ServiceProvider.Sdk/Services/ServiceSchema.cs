@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Text.Json.Nodes;
 using Vion.Contracts.Events.MeshToCloud;
+using Vion.Contracts.TypeRef;
 
 namespace Vion.ServiceProvider.Sdk.Services
 {
@@ -49,23 +51,33 @@ namespace Vion.ServiceProvider.Sdk.Services
 
         private static ServiceProviderDeclarationPayload.PropertyInfo BuildPropertyInfo(IServiceField field)
         {
+            var (schema, presentation) = BuildMetadata(field);
             return new ServiceProviderDeclarationPayload.PropertyInfo
                    {
                        Identifier = field.Name,
-                       Writable = field.IsWritable,
-                       Type = field.JsonSchema,
-                       Annotations = field.Annotations is null ? null : new Dictionary<string, object>(field.Annotations),
+                       Schema = schema,
+                       Presentation = presentation,
                    };
         }
 
         private static ServiceProviderDeclarationPayload.MeasuringPointInfo BuildMeasuringPointInfo(IServiceField field)
         {
+            var (schema, presentation) = BuildMetadata(field);
             return new ServiceProviderDeclarationPayload.MeasuringPointInfo
                    {
                        Identifier = field.Name,
-                       Type = field.JsonSchema,
-                       Annotations = field.Annotations is null ? null : new Dictionary<string, object>(field.Annotations),
+                       Schema = schema,
+                       Presentation = presentation,
                    };
+        }
+
+        // Serialises the field's schema + optional presentation through the same PropertyMetadata
+        // serialiser dale uses, so the SP declaration carries a byte-identical {schema, presentation}.
+        // Runtime is intentionally absent — `persistent` is a dale-runtime concern, not an SP one.
+        private static (JsonNode Schema, JsonNode? Presentation) BuildMetadata(IServiceField field)
+        {
+            var document = new PropertyMetadata(field.Schema, field.Presentation ?? Presentation.None, RuntimeMetadata.None).ToJson();
+            return (document["schema"]!.DeepClone(), document["presentation"]?.DeepClone());
         }
     }
 }

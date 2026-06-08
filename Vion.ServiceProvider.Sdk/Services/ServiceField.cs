@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using Vion.Contracts.TypeRef;
 
@@ -22,19 +21,18 @@ namespace Vion.ServiceProvider.Sdk.Services
         /// <param name="schema">The single source of truth for the field's wire-format type and annotations.</param>
         /// <param name="read">Reads the field's value from a service snapshot.</param>
         /// <param name="write">Returns a new snapshot with the field updated.</param>
-        /// <param name="annotations">Free-form annotations included in the SP declaration.</param>
+        /// <param name="presentation">Optional UI presentation hints, emitted as the declaration's <c>presentation</c> sibling.</param>
         public ServiceField(string name,
                             ServiceFieldKind kind,
                             TypeSchema schema,
                             Func<TService, JsonNode?> read,
                             Func<TService, JsonNode?, TService> write,
-                            IReadOnlyDictionary<string, object>? annotations = null)
+                            Presentation? presentation = null)
         {
             Name = name;
             Kind = kind;
             Schema = schema;
-            JsonSchema = schema.ToJsonSchema().ToJsonString();
-            Annotations = annotations;
+            Presentation = presentation;
             _read = read;
             _write = write;
         }
@@ -49,9 +47,6 @@ namespace Vion.ServiceProvider.Sdk.Services
         public TypeSchema Schema { get; }
 
         /// <inheritdoc />
-        public string JsonSchema { get; }
-
-        /// <inheritdoc />
         public bool IsWritable
         {
             get => !Schema.Annotations.ReadOnly;
@@ -64,7 +59,7 @@ namespace Vion.ServiceProvider.Sdk.Services
         }
 
         /// <inheritdoc />
-        public IReadOnlyDictionary<string, object>? Annotations { get; }
+        public Presentation? Presentation { get; }
 
         /// <inheritdoc />
         public JsonNode? ReadFrom(TService service)
