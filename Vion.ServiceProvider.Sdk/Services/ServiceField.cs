@@ -32,7 +32,6 @@ namespace Vion.ServiceProvider.Sdk.Services
             Name = name;
             Kind = kind;
             Schema = schema;
-            JsonSchema = schema.ToJsonSchema().ToJsonString();
             Presentation = presentation;
             _read = read;
             _write = write;
@@ -46,9 +45,6 @@ namespace Vion.ServiceProvider.Sdk.Services
 
         /// <inheritdoc />
         public TypeSchema Schema { get; }
-
-        /// <inheritdoc />
-        public string JsonSchema { get; }
 
         /// <inheritdoc />
         public bool IsWritable

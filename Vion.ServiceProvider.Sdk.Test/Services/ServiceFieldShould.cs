@@ -55,22 +55,6 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
         }
 
         [TestMethod]
-        public void DeriveJsonSchemaFromTypeSchema()
-        {
-            // Arrange
-
-            // Act
-            var sut = new ServiceField<TestService>(Guid.NewGuid().ToString(),
-                                                    ServiceFieldKind.Property,
-                                                    TypeSchema.Of(new PrimitiveTypeRef(PrimitiveKind.Bool)),
-                                                    _ => null,
-                                                    (service, _) => service);
-
-            // Assert
-            Assert.AreEqual("{\"type\":\"boolean\"}", sut.JsonSchema);
-        }
-
-        [TestMethod]
         public void ReportWriteOnlyFromTypeSchemaAnnotations()
         {
             // Arrange
