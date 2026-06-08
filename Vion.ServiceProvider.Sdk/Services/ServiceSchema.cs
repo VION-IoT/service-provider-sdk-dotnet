@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using Vion.Contracts.Events.MeshToCloud;
+using Vion.Contracts.TypeRef;
 
 namespace Vion.ServiceProvider.Sdk.Services
 {
@@ -52,9 +53,7 @@ namespace Vion.ServiceProvider.Sdk.Services
             return new ServiceProviderDeclarationPayload.PropertyInfo
                    {
                        Identifier = field.Name,
-                       Writable = field.IsWritable,
-                       Type = field.JsonSchema,
-                       Annotations = field.Annotations is null ? null : new Dictionary<string, object>(field.Annotations),
+                       Schema = field.Schema.ToJsonSchema(),
                    };
         }
 
@@ -63,8 +62,7 @@ namespace Vion.ServiceProvider.Sdk.Services
             return new ServiceProviderDeclarationPayload.MeasuringPointInfo
                    {
                        Identifier = field.Name,
-                       Type = field.JsonSchema,
-                       Annotations = field.Annotations is null ? null : new Dictionary<string, object>(field.Annotations),
+                       Schema = field.Schema.ToJsonSchema(),
                    };
         }
     }
