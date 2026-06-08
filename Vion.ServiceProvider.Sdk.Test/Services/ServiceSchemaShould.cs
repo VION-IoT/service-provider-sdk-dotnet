@@ -42,6 +42,17 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
             Assert.IsTrue(secret.Schema["writeOnly"]!.GetValue<bool>());
         }
 
+        [TestMethod]
+        public void EmitPresentationAsASiblingWhenAFieldDeclaresIt()
+        {
+            var service = new AnnotatedSchema().BuildServiceInfo();
+
+            var grouped = service.Properties!.Single(p => p.Identifier == "Grouped");
+            Assert.AreEqual("Connection", grouped.Presentation!["group"]!.GetValue<string>());
+            Assert.AreEqual(2, grouped.Presentation["order"]!.GetValue<int>());
+            Assert.AreEqual("string", grouped.Schema["type"]!.GetValue<string>());
+        }
+
         private sealed class AnnotatedSchema : ServiceSchema<object>
         {
             public override string ServiceIdentifier
@@ -64,12 +75,18 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
                           new TypeSchema(new PrimitiveTypeRef(PrimitiveKind.String), new TypeAnnotations { ReadOnly = true }, ImmutableDictionary<string, TypeAnnotations>.Empty)),
                     Field("Secret",
                           new TypeSchema(new PrimitiveTypeRef(PrimitiveKind.String), new TypeAnnotations { WriteOnly = true }, ImmutableDictionary<string, TypeAnnotations>.Empty)),
+                    Field("Grouped", TypeSchema.Of(new PrimitiveTypeRef(PrimitiveKind.String)), new Presentation { Group = "Connection", Order = 2 }),
                 ];
             }
 
-            private static IServiceField<object> Field(string name, TypeSchema schema)
+            private static IServiceField<object> Field(string name, TypeSchema schema, Presentation? presentation = null)
             {
-                return new ServiceField<object>(name, ServiceFieldKind.Property, schema, _ => null, (state, _) => state);
+                return new ServiceField<object>(name,
+                                                ServiceFieldKind.Property,
+                                                schema,
+                                                _ => null,
+                                                (state, _) => state,
+                                                presentation);
             }
         }
     }

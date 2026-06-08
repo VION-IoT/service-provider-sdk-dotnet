@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using Vion.Contracts.TypeRef;
 
@@ -25,8 +24,8 @@ namespace Vion.ServiceProvider.Sdk.Services
         /// <summary>Whether the field's broadcast value should be redacted. Derived from <see cref="Schema" />.</summary>
         bool IsWriteOnly { get; }
 
-        /// <summary>Free-form annotations included in the SP declaration.</summary>
-        IReadOnlyDictionary<string, object>? Annotations { get; }
+        /// <summary>Optional UI presentation hints, emitted as the declaration's <c>presentation</c> sibling.</summary>
+        Presentation? Presentation { get; }
     }
 
     /// <typeparam name="TService">The service type this field belongs to.</typeparam>
