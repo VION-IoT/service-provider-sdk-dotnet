@@ -151,6 +151,12 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         ///     subscribed, and with initial SDK state published. <c>null</c> when not configured.
         /// </summary>
         public Func<IServiceProviderPublisher, CancellationToken, Task>? OnOperationalReadyCallback { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the delay applied before the SDK re-runs its startup flow after the operational connection ends —
+        ///     whether it dropped after being established or a connection attempt was rejected.
+        /// </summary>
+        public TimeSpan ReconnectDelay { get; set; } = TimeSpan.FromSeconds(5);
     }
 
     /// <summary>
@@ -420,6 +426,22 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         public ServiceProviderClientBuilder WithOnOperationalReady(Func<IServiceProviderPublisher, CancellationToken, Task> onOperationalReady)
         {
             _config.OnOperationalReadyCallback = onOperationalReady;
+            return this;
+        }
+
+        /// <summary>
+        ///     Sets the delay applied before the SDK re-runs its startup flow after the operational connection ends — whether it
+        ///     dropped after being established or a connection attempt was rejected. Optional — defaults to 5 seconds when not
+        ///     called.
+        /// </summary>
+        /// <param name="reconnectDelay">
+        ///     The delay between the operational connection ending and the next startup attempt. <see cref="TimeSpan.Zero" /> (or
+        ///     a negative value) reconnects immediately.
+        /// </param>
+        /// <returns>This builder, for chaining.</returns>
+        public ServiceProviderClientBuilder WithReconnectDelay(TimeSpan reconnectDelay)
+        {
+            _config.ReconnectDelay = reconnectDelay;
             return this;
         }
 

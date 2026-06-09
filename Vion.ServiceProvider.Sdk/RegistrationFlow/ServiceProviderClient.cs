@@ -183,7 +183,12 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 {
                     // execute flow
                     _operationalData = await RegisterAsync(_connectionData, _secret, stoppingToken);
-                    await ConnectOperationalClientAsync(stoppingToken);
+                    if (!await ConnectOperationalClientAsync(stoppingToken))
+                    {
+                        //  MQTTnet has already fired DisconnectedAsync, so OnDisconnectedAsync will run the next attempt.
+                        return;
+                    }
+
                     var serviceProviderDeclarationPayload = await SendOptionalSetupSchemaAsync(stoppingToken);
                     await SendDeclarationAsync(_operationalData, serviceProviderDeclarationPayload, stoppingToken);
                     await SetupHandlersAsync(stoppingToken);
@@ -644,7 +649,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             return _configuration.DeclarationPayload;
         }
 
-        private async Task ConnectOperationalClientAsync(CancellationToken cancellationToken)
+        private async Task<bool> ConnectOperationalClientAsync(CancellationToken cancellationToken)
         {
             var serviceProviderIdentifier = _operationalData!.ConnectionData.ServiceProviderIdentifier;
 
@@ -669,17 +674,24 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
             var options = optionsBuilder.Build();
 
-            LogConnectingOperationalClient(_operationalData.ConnectionData.Host, _operationalData.ConnectionData.Port);
-            var result = await _operationalClient.ConnectAsync(options, cancellationToken);
+            try
+            {
+                LogConnectingOperationalClient(_operationalData.ConnectionData.Host, _operationalData.ConnectionData.Port);
+                var result = await _operationalClient.ConnectAsync(options, cancellationToken);
+                if (result.ResultCode == MqttClientConnectResultCode.Success)
+                {
+                    LogConnectedOperationalClient();
+                    return true;
+                }
 
-            if (result.ResultCode == MqttClientConnectResultCode.Success)
-            {
-                LogConnectedOperationalClient();
-            }
-            else
-            {
                 LogOperationalClientConnectFailed(result.ResultCode);
             }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                LogOperationalClientConnectException(exception);
+            }
+
+            return false;
         }
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "Received message (CorrelationId={CorrelationId}, Topic={Topic})")]
@@ -758,6 +770,12 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to connect to operational MQTT broker (ResultCode={ResultCode})")]
         private partial void LogOperationalClientConnectFailed(MqttClientConnectResultCode resultCode);
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to connect to operational MQTT broker")]
+        private partial void LogOperationalClientConnectException(Exception exception);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Scheduling operational reconnect after {Delay}")]
+        private partial void LogSchedulingReconnect(TimeSpan delay);
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Received setup selection with mismatched correlation data (CorrelationId={CorrelationId}, Topic={Topic})")]
         private partial void LogSetupSelectionCorrelationMismatch(Guid correlationId, string topic);
@@ -925,9 +943,9 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             }
         }
 
-        private Task OnDisconnectedAsync(MqttClientDisconnectedEventArgs arg)
+        private async Task OnDisconnectedAsync(MqttClientDisconnectedEventArgs arg)
         {
-            DisconnectedAsync?.Invoke(arg);
+            _ = DisconnectedAsync?.Invoke(arg);
 
             // Only CANCEL, don't dispose (still in use by running loops)
             SafeCancel(_registrationCts, nameof(_registrationCts));
@@ -936,10 +954,26 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             if (_appStoppingToken is { IsCancellationRequested: true })
             {
                 // app shutdown in progress
-                return Task.CompletedTask;
+                return;
             }
 
-            return StartAsync(_appStoppingToken!.Value);
+            var stoppingToken = _appStoppingToken!.Value;
+            var reconnectDelay = _configuration.ReconnectDelay;
+            if (reconnectDelay > TimeSpan.Zero)
+            {
+                LogSchedulingReconnect(reconnectDelay);
+                try
+                {
+                    await Task.Delay(reconnectDelay, stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    // app shutting down during the backoff
+                    return;
+                }
+            }
+
+            await StartAsync(stoppingToken);
         }
 
         private Task OnConnectingAsync(MqttClientConnectingEventArgs arg)
