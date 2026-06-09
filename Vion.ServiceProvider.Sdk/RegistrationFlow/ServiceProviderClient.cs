@@ -457,7 +457,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             await PublishHealthStatusAsync(topicComponentHealthState,
                                            ConnectionStatus.Online,
                                            HealthStatus.Unknown,
-                                           null,
+                                           DateTime.UtcNow,
                                            null,
                                            this,
                                            Guid.NewGuid(),
@@ -610,7 +610,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 await PublishHealthStatusAsync(_topicComponentHealthState,
                                                ConnectionStatus.Offline,
                                                HealthStatus.Unknown,
-                                               null,
+                                               DateTime.UtcNow,
                                                null,
                                                this,
                                                Guid.NewGuid(),
@@ -675,15 +675,6 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             if (result.ResultCode == MqttClientConnectResultCode.Success)
             {
                 LogConnectedOperationalClient();
-                await PublishHealthStatusAsync(_topicComponentHealthState,
-                                               ConnectionStatus.Online,
-                                               HealthStatus.Unknown,
-                                               null,
-                                               null,
-                                               this,
-                                               Guid.NewGuid(),
-                                               true,
-                                               cancellationToken);
             }
             else
             {
