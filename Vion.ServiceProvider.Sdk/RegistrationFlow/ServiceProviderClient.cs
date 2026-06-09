@@ -777,6 +777,9 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         [LoggerMessage(Level = LogLevel.Debug, Message = "Scheduling operational reconnect after {Delay}")]
         private partial void LogSchedulingReconnect(TimeSpan delay);
 
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Error in a consumer DisconnectedAsync event handler")]
+        private partial void LogConsumerDisconnectHandlerFailed(Exception exception);
+
         [LoggerMessage(Level = LogLevel.Warning, Message = "Received setup selection with mismatched correlation data (CorrelationId={CorrelationId}, Topic={Topic})")]
         private partial void LogSetupSelectionCorrelationMismatch(Guid correlationId, string topic);
 
@@ -945,7 +948,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         private async Task OnDisconnectedAsync(MqttClientDisconnectedEventArgs arg)
         {
-            _ = DisconnectedAsync?.Invoke(arg);
+            _ = ForwardDisconnectAsync(arg);
 
             // Only CANCEL, don't dispose (still in use by running loops)
             SafeCancel(_registrationCts, nameof(_registrationCts));
@@ -974,6 +977,23 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             }
 
             await StartAsync(stoppingToken);
+        }
+
+        // Forward the disconnect notification to consumers without letting a slow or throwing handler stall or break the
+        // SDK's own reconnect. Faults are logged, not propagated.
+        private async Task ForwardDisconnectAsync(MqttClientDisconnectedEventArgs arg)
+        {
+            try
+            {
+                if (DisconnectedAsync is { } handler)
+                {
+                    await handler.Invoke(arg);
+                }
+            }
+            catch (Exception exception)
+            {
+                LogConsumerDisconnectHandlerFailed(exception);
+            }
         }
 
         private Task OnConnectingAsync(MqttClientConnectingEventArgs arg)
