@@ -12,8 +12,8 @@ namespace Vion.ServiceProvider.Sdk.SystemControl
     /// <summary>
     ///     The default <c>logLevel/set</c> handler: parses the incoming payload and updates
     ///     <see cref="LogLevelManager.CurrentLevel" />.
-    ///     Wired by <c>AddVionServiceProviderSdk</c>; service providers using the raw builder may also override the default via
-    ///     <c>WithLogLevelChangeCallback</c>.
+    ///     Wired by <c>AddVionServiceProviderSdk</c>; service providers using the raw builder may also override the default
+    ///     via <c>WithLogLevelChangeCallback</c>.
     /// </summary>
     public sealed partial class SetLogLevelHandler
     {
