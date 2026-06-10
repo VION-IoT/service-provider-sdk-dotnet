@@ -177,7 +177,7 @@ stateDiagram-v2
     - `system/serviceProvider/registration/accepted/{secret}`
     - `system/serviceProvider/registration/denied/{secret}`
 
-3. **PublishingRegistration**: Publish the registration request to `system/serviceProvider/registration/request/{secret}` with QoS 0, retained, content-type `application/json`,
+3. **PublishingRegistration**: Publish the registration request to `system/serviceProvider/registration/request/{secret}` with QoS 1, retained, content-type `application/json`,
    payload `ServiceProviderRegistrationRequestPayload` carrying the `serviceProviderIdentifier` (mesh reads the identifier from the payload, not the topic).
 
 4. **WaitingForAcceptance**: Wait for a registration response. If no response is received within 30 seconds, republish the registration request. This loop continues until
@@ -302,7 +302,7 @@ stateDiagram-v2
 
 2. **PublishingToDeclarationTopic**: Publish to `{installationTopic}/{serviceProviderIdentifier}/system/serviceProvider/declaration` as retained JSON with:
     - Content-Type: `application/json`
-    - QoS: 0
+    - QoS: 1
     - Retain: true
     - CorrelationData: unique identifier
     - Schema user property: `ServiceProviderDeclarationPayload`
@@ -530,7 +530,7 @@ gracefully, allowing the new flow to proceed without conflicts.
 
 | Topic                                                   | Direction          | QoS | Retain | Content                                                                                |
 |---------------------------------------------------------|--------------------|-----|--------|----------------------------------------------------------------------------------------|
-| `system/serviceProvider/registration/request/{secret}`  | Provider → Runtime | 0   | Yes    | JSON `ServiceProviderRegistrationRequestPayload` (carries `serviceProviderIdentifier`) |
+| `system/serviceProvider/registration/request/{secret}`  | Provider → Runtime | 1   | Yes    | JSON `ServiceProviderRegistrationRequestPayload` (carries `serviceProviderIdentifier`) |
 | `system/serviceProvider/registration/accepted/{secret}` | Runtime → Provider | 0   | No     | JSON credentials                                                                       |
 | `system/serviceProvider/registration/denied/{secret}`   | Runtime → Provider | 0   | No     | JSON denial reason                                                                     |
 
@@ -538,14 +538,14 @@ gracefully, allowing the new flow to proceed without conflicts.
 
 | Topic                                                                             | Direction          | QoS | Retain | Content              |
 |-----------------------------------------------------------------------------------|--------------------|-----|--------|----------------------|
-| `{installationTopic}/{serviceProviderIdentifier}/serviceProvider/setup/schema`    | Provider → Runtime | 0   | Yes    | JSON setup schema    |
+| `{installationTopic}/{serviceProviderIdentifier}/serviceProvider/setup/schema`    | Provider → Runtime | 1   | Yes    | JSON setup schema    |
 | `{installationTopic}/{serviceProviderIdentifier}/serviceProvider/setup/selection` | Runtime → Provider | 0   | No     | JSON setup selection |
 
 ### Declaration Topics
 
 | Topic                                                                                | Direction          | QoS | Retain | Content          |
 |--------------------------------------------------------------------------------------|--------------------|-----|--------|------------------|
-| `{installationTopic}/{serviceProviderIdentifier}/system/serviceProvider/declaration` | Provider → Runtime | 0   | Yes    | JSON declaration |
+| `{installationTopic}/{serviceProviderIdentifier}/system/serviceProvider/declaration` | Provider → Runtime | 1   | Yes    | JSON declaration |
 
 ### Health Topics
 

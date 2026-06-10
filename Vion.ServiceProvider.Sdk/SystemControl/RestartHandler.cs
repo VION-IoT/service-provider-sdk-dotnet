@@ -11,7 +11,7 @@ namespace Vion.ServiceProvider.Sdk.SystemControl
     /// <summary>
     ///     The default <c>restart</c> handler: stops the host so the container restart policy brings the service provider back
     ///     up.
-    ///     Wired by <c>AddVionServiceProvider</c>; service providers using the raw builder may also override the default via
+    ///     Wired by <c>AddVionServiceProviderSdk</c>; service providers using the raw builder may also override the default via
     ///     <c>WithRestartCallback</c>.
     /// </summary>
     public sealed partial class RestartHandler

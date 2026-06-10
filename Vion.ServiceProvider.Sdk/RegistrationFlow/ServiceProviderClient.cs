@@ -220,7 +220,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                               string? contentType = null,
                                               string? schema = null,
                                               ReadOnlyMemory<byte> payload = default,
-                                              MqttQualityOfServiceLevel qos = MqttQualityOfServiceLevel.AtLeastOnce,
+                                              MqttQualityOfServiceLevel qos = MqttQualityOfServiceLevel.AtMostOnce,
                                               bool retain = false)
         {
             return PublishPooledAsync(topic,
@@ -246,7 +246,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                ReadOnlyMemory<byte> payload = default,
                                                string? errorCode = null,
                                                string? errorMessage = null,
-                                               MqttQualityOfServiceLevel qos = MqttQualityOfServiceLevel.AtLeastOnce)
+                                               MqttQualityOfServiceLevel qos = MqttQualityOfServiceLevel.AtMostOnce)
         {
             return PublishPooledAsync(topic,
                                       correlationId,
@@ -726,12 +726,12 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         [LoggerMessage(Level = LogLevel.Warning,
                        Message =
-                           "Received logLevel/set command but no handler is configured — override WithLogLevelChangeCallback or use AddVionServiceProvider (CorrelationId={CorrelationId})")]
+                           "Received logLevel/set command but no handler is configured — override WithLogLevelChangeCallback or use AddVionServiceProviderSdk (CorrelationId={CorrelationId})")]
         private partial void LogLogLevelHandlerNotConfigured(Guid correlationId);
 
         [LoggerMessage(Level = LogLevel.Warning,
                        Message =
-                           "Received restart command but no handler is configured — override WithRestartCallback or use AddVionServiceProvider (CorrelationId={CorrelationId})")]
+                           "Received restart command but no handler is configured — override WithRestartCallback or use AddVionServiceProviderSdk (CorrelationId={CorrelationId})")]
         private partial void LogRestartHandlerNotConfigured(Guid correlationId);
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Error during app-shutdown cleanup")]
@@ -1103,7 +1103,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
                 var msg = new MqttApplicationMessageBuilder().WithTopic(setupSchemaTopic)
                                                              .WithPayload(payload)
-                                                             .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
+                                                             .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
                                                              .WithContentType(MessageMimeTypes.Json)
                                                              .WithCorrelationData(correlationId.ToByteArray())
                                                              .WithResponseTopic(setupSelectionTopic)
@@ -1272,7 +1272,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
                 var msg = new MqttApplicationMessageBuilder().WithTopic(topic)
                                                              .WithPayload(payload)
-                                                             .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
+                                                             .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
                                                              .WithContentType(MessageMimeTypes.Json)
                                                              .WithCorrelationData(correlationId.ToByteArray())
                                                              .WithUserProperty(PublishedAt.Name,
@@ -1384,7 +1384,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
             var msg = new MqttApplicationMessageBuilder().WithTopic(topic)
                                                          .WithPayload(payload)
-                                                         .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
+                                                         .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
                                                          .WithContentType(MessageMimeTypes.Json)
                                                          .WithCorrelationData(correlationId.ToByteArray())
                                                          .WithUserProperty(PublishedAt.Name,
@@ -1393,11 +1393,20 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                          .WithRetainFlag()
                                                          .Build();
 
-            var publishSucceeded = await PublishRawAsync(_operationalClient, msg, correlationId, cancellationToken);
-            if (publishSucceeded)
+            // Retry until the broker acks (QoS 1). Bail on disconnect: OnDisconnectedAsync restarts the whole
+            // flow and re-sends the declaration, whereas looping here would spin on a dead client and block the
+            // reconnect (this runs under _startSemaphore on the app token, which a disconnect doesn't cancel).
+            while (!await PublishRawAsync(_operationalClient, msg, correlationId, cancellationToken))
             {
-                LogDeclarationPublished(correlationId, topic);
+                if (!_operationalClient.IsConnected)
+                {
+                    return;
+                }
+
+                await Task.Delay(_configuration.ReconnectDelay, cancellationToken);
             }
+
+            LogDeclarationPublished(correlationId, topic);
         }
 
         // Safe cancellation helper

@@ -65,7 +65,7 @@ Connect to the registration broker and publish a message:
 |------------------------|-------------------------------------------------------------------------------------------|
 | Topic                  | `system/serviceProvider/registration/request/{secret}`                                    |
 | Payload                | JSON `ServiceProviderRegistrationRequestPayload` carrying the `serviceProviderIdentifier` |
-| QoS                    | 0                                                                                         |
+| QoS                    | 1                                                                                         |
 | Retain                 | yes                                                                                       |
 | Content-Type           | `application/json`                                                                        |
 | User property `schema` | `ServiceProviderRegistrationRequestPayload`                                               |
@@ -147,7 +147,7 @@ After connecting operationally, publish a declaration describing the services an
 |--------------|--------------------------------------------------------------------------------------|
 | Topic        | `{installationTopic}/{serviceProviderIdentifier}/system/serviceProvider/declaration` |
 | Payload      | JSON (see below)                                                                     |
-| QoS          | 0                                                                                    |
+| QoS          | 1                                                                                    |
 | Retain       | yes                                                                                  |
 | Content-Type | `application/json`                                                                   |
 
