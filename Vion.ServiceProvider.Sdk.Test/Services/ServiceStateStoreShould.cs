@@ -23,8 +23,6 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
 
         private readonly Mock<ILogger<ServiceStateStore<TestServiceState>>> _loggerMock = new();
 
-        private readonly TestSchema _schema = new();
-
         private readonly TimeSpan _testTimeout = TimeSpan.FromSeconds(5);
 
         private ServiceStateStore<TestServiceState> _sut = null!;
@@ -39,7 +37,6 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
 
             _sut = new ServiceStateStore<TestServiceState>(_diskAccessProviderMock.Object,
                                                            StateFilePath,
-                                                           _schema,
                                                            TestServiceStateJsonContext.Default.TestServiceState,
                                                            new TestServiceState(),
                                                            _loggerMock.Object);
@@ -113,24 +110,12 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
         }
 
         [TestMethod]
-        public async Task ThrowOnUpdateOfUnknownField()
-        {
-            // Arrange
-            await _sut.InitializeAsync(CancellationToken.None).WaitAsync(_testTimeout, CancellationToken.None);
-
-            // Act / Assert
-            await Assert.ThrowsExactlyAsync<ArgumentException>(() => _sut.UpdateAsync(Guid.NewGuid().ToString(),
-                                                                                      JsonValue.Create(Guid.NewGuid().ToString()),
-                                                                                      CancellationToken.None));
-        }
-
-        [TestMethod]
         public async Task ThrowOnUpdateWhenNotInitialized()
         {
             // Arrange
 
             // Act / Assert
-            await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => _sut.UpdateAsync(TestSchema.Plain.Name,
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => _sut.UpdateAsync(TestSchema.Plain,
                                                                                               JsonValue.Create(Guid.NewGuid().ToString()),
                                                                                               CancellationToken.None));
         }
@@ -142,7 +127,7 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
             await _sut.InitializeAsync(CancellationToken.None).WaitAsync(_testTimeout, CancellationToken.None);
 
             // Act
-            await _sut.UpdateAsync(TestSchema.Plain.Name, null, CancellationToken.None).WaitAsync(_testTimeout, CancellationToken.None);
+            await _sut.UpdateAsync(TestSchema.Plain, null, CancellationToken.None).WaitAsync(_testTimeout, CancellationToken.None);
 
             // Assert
             _diskAccessProviderMock.Verify(disk => disk.CreateDirectory(Path.GetDirectoryName(StateFilePath)!), Times.Once);
@@ -156,7 +141,7 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
             var expectedPlain = Guid.NewGuid().ToString();
 
             // Act
-            await _sut.UpdateAsync(TestSchema.Plain.Name, JsonValue.Create(expectedPlain), CancellationToken.None).WaitAsync(_testTimeout, CancellationToken.None);
+            await _sut.UpdateAsync(TestSchema.Plain, JsonValue.Create(expectedPlain), CancellationToken.None).WaitAsync(_testTimeout, CancellationToken.None);
 
             // Assert
             Assert.Contains(expectedPlain, _diskState[StateFilePath]);
@@ -176,7 +161,7 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
             var expectedReading = Random.Shared.NextDouble();
 
             // Act
-            await _sut.UpdateAsync(TestSchema.Reading.Name, JsonValue.Create(expectedReading), CancellationToken.None).WaitAsync(_testTimeout, CancellationToken.None);
+            await _sut.UpdateAsync(TestSchema.Reading, JsonValue.Create(expectedReading), CancellationToken.None).WaitAsync(_testTimeout, CancellationToken.None);
 
             // Assert
             Assert.IsNotNull(capturedState);
@@ -191,7 +176,7 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
             var expectedPlain = Guid.NewGuid().ToString();
 
             // Act
-            var updated = await _sut.UpdateAsync(TestSchema.Plain.Name, JsonValue.Create(expectedPlain), CancellationToken.None).WaitAsync(_testTimeout, CancellationToken.None);
+            var updated = await _sut.UpdateAsync(TestSchema.Plain, JsonValue.Create(expectedPlain), CancellationToken.None).WaitAsync(_testTimeout, CancellationToken.None);
 
             // Assert
             Assert.AreEqual(expectedPlain, updated.Plain);
@@ -229,7 +214,7 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
             // Arrange
             await _sut.InitializeAsync(CancellationToken.None).WaitAsync(_testTimeout, CancellationToken.None);
             var expectedPlain = Guid.NewGuid().ToString();
-            await _sut.UpdateAsync(TestSchema.Plain.Name, JsonValue.Create(expectedPlain), CancellationToken.None).WaitAsync(_testTimeout, CancellationToken.None);
+            await _sut.UpdateAsync(TestSchema.Plain, JsonValue.Create(expectedPlain), CancellationToken.None).WaitAsync(_testTimeout, CancellationToken.None);
 
             // Act
             var current = await _sut.GetCurrentAsync(CancellationToken.None).WaitAsync(_testTimeout, CancellationToken.None);

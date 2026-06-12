@@ -21,8 +21,6 @@ namespace Vion.ServiceProvider.Sdk.Services
 
         private readonly ILogger<ServiceStateStore<TService>> _logger;
 
-        private readonly ServiceSchema<TService> _schema;
-
         private readonly string _stateFilePath;
 
         private readonly SemaphoreSlim _stateLock = new(1, 1);
@@ -36,20 +34,17 @@ namespace Vion.ServiceProvider.Sdk.Services
         /// <summary>Initializes a new instance of the <see cref="ServiceStateStore{TService}" /> class.</summary>
         /// <param name="diskAccessProvider">The disk access used to load and persist state.</param>
         /// <param name="stateFilePath">The file path the state is persisted to.</param>
-        /// <param name="schema">The schema describing the service's fields.</param>
         /// <param name="typeInfo">The source-generated JSON type metadata for <typeparamref name="TService" />.</param>
         /// <param name="defaultState">The state to start from when nothing is persisted.</param>
         /// <param name="logger">The logger.</param>
         public ServiceStateStore(IDiskAccessProvider diskAccessProvider,
                                  string stateFilePath,
-                                 ServiceSchema<TService> schema,
                                  JsonTypeInfo<TService> typeInfo,
                                  TService defaultState,
                                  ILogger<ServiceStateStore<TService>> logger)
         {
             _diskAccessProvider = diskAccessProvider;
             _stateFilePath = stateFilePath;
-            _schema = schema;
             _typeInfo = typeInfo;
             _current = defaultState;
             _logger = logger;
@@ -109,13 +104,8 @@ namespace Vion.ServiceProvider.Sdk.Services
         }
 
         /// <inheritdoc />
-        public async Task<TService> UpdateAsync(string field, JsonNode? value, CancellationToken cancellationToken)
+        public async Task<TService> UpdateAsync(IServiceField<TService> field, JsonNode? value, CancellationToken cancellationToken)
         {
-            if (!_schema.TryGet(field, out var serviceField))
-            {
-                throw new ArgumentException($"Unknown field '{field}'.", nameof(field));
-            }
-
             TService newState;
             await _stateLock.WaitAsync(cancellationToken);
             try
@@ -125,10 +115,10 @@ namespace Vion.ServiceProvider.Sdk.Services
                     throw new InvalidOperationException($"{nameof(ServiceStateStore<>)} must be initialized before {nameof(UpdateAsync)}.");
                 }
 
-                newState = serviceField.WriteTo(_current, value);
+                newState = field.WriteTo(_current, value);
                 Persist(newState);
                 _current = newState;
-                LogUpdatedState(field);
+                LogUpdatedState(field.Name);
             }
             finally
             {

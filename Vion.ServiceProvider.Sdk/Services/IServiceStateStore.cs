@@ -32,14 +32,13 @@ namespace Vion.ServiceProvider.Sdk.Services
         Task<TService> InitializeAsync(CancellationToken cancellationToken);
 
         /// <summary>Applies a single field update, persists, and raises <see cref="StateChanged" />.</summary>
-        /// <param name="field">The field identifier to update.</param>
+        /// <param name="field">The field to update.</param>
         /// <param name="value">The new value, or <c>null</c> to clear the field.</param>
         /// <param name="cancellationToken">A token to cancel the update.</param>
         /// <returns>The new snapshot after the field is applied.</returns>
-        /// <exception cref="ArgumentException">No field with the given identifier exists in the schema.</exception>
         /// <exception cref="InvalidOperationException">The store has not been initialized.</exception>
         /// <exception cref="OperationCanceledException">The update was canceled via <paramref name="cancellationToken" />.</exception>
-        Task<TService> UpdateAsync(string field, JsonNode? value, CancellationToken cancellationToken);
+        Task<TService> UpdateAsync(IServiceField<TService> field, JsonNode? value, CancellationToken cancellationToken);
 
         /// <summary>Returns the current in-memory state snapshot.</summary>
         /// <param name="cancellationToken">A token to cancel the read.</param>
