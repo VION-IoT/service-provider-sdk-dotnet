@@ -22,11 +22,19 @@ namespace Vion.ServiceProvider.Sdk.JsonSerializationContexts
     [JsonSerializable(typeof(ServiceProviderSetupSelectionPayload))]
     [JsonSerializable(typeof(SetLogLevelPayload))]
     [JsonSerializable(typeof(LogLevelStatePayload))]
+    [JsonSerializable(typeof(PropertyStatePayload))]
+    [JsonSerializable(typeof(MeasuringPointStatePayload))]
+    [JsonSerializable(typeof(ComponentHealthStatusPayload))]
     [JsonSerializable(typeof(Dictionary<string, object>))]
     [JsonSerializable(typeof(string))]
     [JsonSerializable(typeof(bool))]
     [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
                                  DictionaryKeyPolicy = JsonKnownNamingPolicy.CamelCase,
-                                 Converters = [typeof(JsonStringEnumConverter<LogLevel>)])]
+                                 Converters =
+                                 [
+                                     typeof(JsonStringEnumConverter<LogLevel>),
+                                     typeof(JsonStringEnumConverter<ConnectionStatus>),
+                                     typeof(JsonStringEnumConverter<HealthStatus>),
+                                 ])]
     public partial class ServiceProviderJsonContext : JsonSerializerContext;
 }

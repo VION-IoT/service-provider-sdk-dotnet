@@ -1,19 +1,20 @@
 using System;
 using System.Collections.Concurrent;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using MQTTnet.Protocol;
-using Vion.Contracts.Codec;
 using Vion.Contracts.Conventions;
-using Vion.Contracts.FlatBuffers.Common;
+using Vion.Contracts.Events.ServiceProviderToMesh;
 using Vion.Contracts.Mqtt;
+using Vion.ServiceProvider.Sdk.JsonSerializationContexts;
 using Vion.ServiceProvider.Sdk.RegistrationFlow;
 
 namespace Vion.ServiceProvider.Sdk.Services
 {
     /// <summary>
-    ///     Publishes service-field values as retained <c>PropertyValue</c> FlatBuffers on the field's state topic.
+    ///     Publishes service-field values as retained JSON state messages on the field's state topic.
     /// </summary>
     public sealed class ServiceStatePublisher : IServiceStatePublisher
     {
@@ -23,7 +24,15 @@ namespace Vion.ServiceProvider.Sdk.Services
         public Task PublishFieldAsync(IServiceProviderPublisher publisher, string serviceIdentifier, IServiceField field, JsonNode? value, CancellationToken cancellationToken)
         {
             var publishedValue = field.IsWriteOnly && value is not null ? JsonValue.Create(WriteOnlyConventions.RedactedSentinel) : value;
-            var payload = PropertyValueCodec.JsonToFlatBuffer(publishedValue, field.Schema.Type);
+            var (payload, schema) = field.Kind switch
+            {
+                ServiceFieldKind.Property => (JsonSerializer.SerializeToUtf8Bytes(new PropertyStatePayload(publishedValue),
+                                                                                  ServiceProviderJsonContext.Default.PropertyStatePayload), nameof(PropertyStatePayload)),
+                ServiceFieldKind.MeasuringPoint => (JsonSerializer.SerializeToUtf8Bytes(new MeasuringPointStatePayload(publishedValue),
+                                                                                        ServiceProviderJsonContext.Default.MeasuringPointStatePayload),
+                                                       nameof(MeasuringPointStatePayload)),
+                _ => throw new InvalidOperationException($"Unknown field kind '{field.Kind}' on field '{field.Name}'."),
+            };
 
             var topicKey = new TopicKey(serviceIdentifier, field);
             if (!_topicByField.TryGetValue(topicKey, out var topic))
@@ -35,8 +44,8 @@ namespace Vion.ServiceProvider.Sdk.Services
             return publisher.PublishMessageAsync(topic,
                                                  Guid.NewGuid(),
                                                  cancellationToken,
-                                                 MessageMimeTypes.FlatBuffer,
-                                                 nameof(PropertyValue),
+                                                 MessageMimeTypes.Json,
+                                                 schema,
                                                  payload,
                                                  MqttQualityOfServiceLevel.AtMostOnce,
                                                  true);

@@ -3,12 +3,10 @@ using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
-using Google.FlatBuffers;
 using Moq;
 using MQTTnet.Protocol;
-using Vion.Contracts.Codec;
 using Vion.Contracts.Conventions;
-using Vion.Contracts.FlatBuffers.Common;
+using Vion.Contracts.Events.ServiceProviderToMesh;
 using Vion.Contracts.Mqtt;
 using Vion.ServiceProvider.Sdk.RegistrationFlow;
 using Vion.ServiceProvider.Sdk.Services;
@@ -29,13 +27,13 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
 
         private ServiceStatePublisher _sut = null!;
 
-        // A property field and a measuring-point field produce the same state message, differing only in the topic's kind segment.
+        // A property field and a measuring-point field produce the same state message, differing only in the topic's kind segment and the envelope schema.
         private static IEnumerable<object[]> StateFields
         {
             get =>
             [
-                [TestSchema.Plain, "property", JsonValue.Create(Guid.NewGuid().ToString())],
-                [TestSchema.Reading, "measuringPoint", JsonValue.Create(Random.Shared.NextDouble())],
+                [TestSchema.Plain, "property", nameof(PropertyStatePayload), JsonValue.Create(Guid.NewGuid().ToString())],
+                [TestSchema.Reading, "measuringPoint", nameof(MeasuringPointStatePayload), JsonValue.Create(Random.Shared.NextDouble())],
             ];
         }
 
@@ -49,7 +47,7 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
 
         [TestMethod]
         [DynamicData(nameof(StateFields))]
-        public async Task PublishStateMessage(object field, string kindSegment, JsonNode value)
+        public async Task PublishStateMessage(object field, string kindSegment, string expectedSchema, JsonNode value)
         {
             // Arrange
             var serviceField = (IServiceField)field;
@@ -60,8 +58,8 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
             // Assert — the publisher delegates to the strict publish surface, which stamps correlationId + published_at.
             Assert.AreEqual($"{InstallationTopic}/{SpId}/{SvcId}/{serviceField.Name}/sw/{kindSegment}/state", call.Topic);
             Assert.IsTrue(JsonNode.DeepEquals(value, DecodePayload(call.Payload)));
-            Assert.AreEqual(MessageMimeTypes.FlatBuffer, call.ContentType);
-            Assert.AreEqual(nameof(PropertyValue), call.Schema);
+            Assert.AreEqual(MessageMimeTypes.Json, call.ContentType);
+            Assert.AreEqual(expectedSchema, call.Schema);
             Assert.AreEqual(MqttQualityOfServiceLevel.AtMostOnce, call.Qos);
             Assert.IsTrue(call.Retain);
             Assert.AreNotEqual(Guid.Empty, call.CorrelationId);
@@ -107,7 +105,7 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
 
         private static JsonNode? DecodePayload(byte[] payload)
         {
-            return PropertyValueCodec.FlatBufferToJson(new ByteBuffer(payload));
+            return JsonNode.Parse(payload)?["value"];
         }
 
         private async Task<PublishCall> PublishAsync(IServiceField field, JsonNode? value)

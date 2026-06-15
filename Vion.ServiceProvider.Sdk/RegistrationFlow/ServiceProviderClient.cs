@@ -20,12 +20,10 @@ using Vion.Contracts.Events.ServiceProviderToMesh;
 using Vion.Contracts.Mqtt;
 using Vion.ServiceProvider.Sdk.Infrastructure;
 using Vion.ServiceProvider.Sdk.JsonSerializationContexts;
-using Vion.ServiceProvider.Sdk.RegistrationFlow.Extensions;
 using Vion.ServiceProvider.Sdk.Setup;
 using Vion.ServiceProvider.Sdk.SystemControl;
 using Vion.Telemetry.Instrumentation;
 using static Vion.Contracts.Mqtt.MqttUserProperties;
-using ComponentHealthStatusPayload = Vion.Contracts.FlatBuffers.System.Health.ComponentHealthStatusPayload;
 using ConnectionStatus = Vion.Contracts.Events.MeshToCloud.ConnectionStatus;
 using HealthStatus = Vion.Contracts.Events.MeshToCloud.HealthStatus;
 using MqttUserProperty = MQTTnet.Packets.MqttUserProperty;
@@ -272,16 +270,15 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                    bool retain,
                                                    CancellationToken cancellationToken)
         {
-            var flatBufferConnectionStatus = connectionStatus.ToFlatBufferConnectionStatus();
-            var flatBufferHealthStatus = healthStatus.ToFlatBufferHealthStatus();
-            var payload = FlatBufferPayloadFactory.CreateComponentHealthStatusPayload(client.ServiceProviderIdentifier!,
-                                                                                      flatBufferConnectionStatus,
-                                                                                      flatBufferHealthStatus,
-                                                                                      since,
-                                                                                      reason);
+            var payload = JsonSerializer.SerializeToUtf8Bytes(new ComponentHealthStatusPayload(new Component(client.ServiceProviderIdentifier!,
+                                                                                                             connectionStatus,
+                                                                                                             healthStatus,
+                                                                                                             since,
+                                                                                                             reason)),
+                                                              ServiceProviderJsonContext.Default.ComponentHealthStatusPayload);
             return PublishPooledAsync(topic,
                                       correlationId,
-                                      MessageMimeTypes.FlatBuffer,
+                                      MessageMimeTypes.Json,
                                       nameof(ComponentHealthStatusPayload),
                                       payload,
                                       MqttQualityOfServiceLevel.AtMostOnce,
@@ -661,13 +658,15 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
             // last will
             _topicComponentHealthState = ServiceProviderTopics.GetTopicComponentHealthState(_operationalData!.InstallationTopic, serviceProviderIdentifier);
+            var willPayload = JsonSerializer.SerializeToUtf8Bytes(new ComponentHealthStatusPayload(new Component(_operationalData.ConnectionData.ServiceProviderIdentifier,
+                                                                                                                 ConnectionStatus.Offline,
+                                                                                                                 HealthStatus.Unknown,
+                                                                                                                 null)),
+                                                                  ServiceProviderJsonContext.Default.ComponentHealthStatusPayload);
             optionsBuilder.WithWillTopic(_topicComponentHealthState)
                           .WithWillCorrelationData(Guid.NewGuid().ToByteArray())
-                          .WithWillContentType(MessageMimeTypes.FlatBuffer)
-                          .WithWillPayload(FlatBufferPayloadFactory.CreateComponentHealthStatusPayload(_operationalData.ConnectionData.ServiceProviderIdentifier,
-                                                                                                       Contracts.FlatBuffers.System.Health.ConnectionStatus.Offline,
-                                                                                                       Contracts.FlatBuffers.System.Health.HealthStatus.Unknown,
-                                                                                                       null))
+                          .WithWillContentType(MessageMimeTypes.Json)
+                          .WithWillPayload(willPayload)
                           .WithWillQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
                           .WithWillRetain()
                           .WithWillUserProperty(Schema.Name, Encoding.UTF8.GetBytes(nameof(ComponentHealthStatusPayload)));
