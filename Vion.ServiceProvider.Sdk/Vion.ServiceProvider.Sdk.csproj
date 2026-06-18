@@ -19,7 +19,7 @@
     <ItemGroup>
         <PackageReference Include="Vion.Contracts" Version="1.1.0"/>
         <PackageReference Include="MQTTnet" Version="5.1.0.1559"/>
-        <PackageReference Include="Vion.Telemetry.Instrumentation" Version="0.3.0"/>
+        <PackageReference Include="Vion.Telemetry.Instrumentation" Version="1.0.0"/>
         <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.300"/>
     </ItemGroup>
 

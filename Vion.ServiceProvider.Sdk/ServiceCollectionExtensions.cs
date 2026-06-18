@@ -27,6 +27,24 @@ namespace Vion.ServiceProvider.Sdk
         ///     <see cref="Microsoft.Extensions.Hosting.IHostApplicationLifetime" />). For service-field state the SDK also
         ///     provides <see cref="Services.ServiceStatePublisher" /> to publish property or measuring-point states and
         ///     <see cref="Services.ServiceStateStore{TService}" /> to persist service state to the disk.
+        ///     <para>
+        ///         The SDK already records messaging metrics — publish, consume, and disconnection counts on the operational
+        ///         MQTT client — through <c>MessagingMetrics</c>. They are exported only if the host opts the meter into its
+        ///         OpenTelemetry export: add <c>MessagingMetrics.MeterName</c> to the export's <c>MeterNames</c> and a matching
+        ///         tagged view to <c>MetricViews</c>:
+        ///         <code>
+        ///         MeterNames:
+        ///         [
+        ///             MessagingMetrics.MeterName,
+        ///         ],
+        ///         MetricViews:
+        ///         [
+        ///             ($"{MessagingMetrics.InstrumentPrefix}*",
+        ///                 new MetricStreamConfiguration
+        ///                 { TagKeys = [MessagingMetrics.ConnectionTag, MessagingMetrics.ResultTag] }),
+        ///         ],
+        ///         </code>
+        ///     </para>
         /// </remarks>
         /// <param name="services">The service collection.</param>
         /// <param name="configuration">Configuration used to seed <see cref="LogLevelManager" />.</param>

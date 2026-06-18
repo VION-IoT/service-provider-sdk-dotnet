@@ -36,6 +36,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
     /// </summary>
     public partial class ServiceProviderClient : IServiceProviderClient, IAsyncDisposable
     {
+        private const string ConnectionName = "Local";
+
         private static readonly ObjectPool<MqttApplicationMessage> MessagePool = new(static () => new MqttApplicationMessage
                                                                                                   {
                                                                                                       CorrelationData = new byte[16],
@@ -431,25 +433,32 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 message.UserProperties.Add(new MqttUserProperty(TraceParent.Name, Encoding.UTF8.GetBytes(traceParent)));
             }
 
+            var succeeded = false;
             try
             {
                 var result = await client.PublishAsync(message, cancellationToken);
                 if (result.IsSuccess)
                 {
+                    succeeded = true;
                     LogPublishSucceeded(correlationId, message.Topic);
-                    return true;
                 }
-
-                activity?.MarkFailed($"Publish failed: {result.ReasonCode} - {result.ReasonString}");
-                LogPublishFailed(result.ReasonCode, correlationId, message.Topic);
-                return false;
+                else
+                {
+                    activity?.MarkFailed($"Publish failed: {result.ReasonCode} - {result.ReasonString}");
+                    LogPublishFailed(result.ReasonCode, correlationId, message.Topic);
+                }
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 activity?.MarkFailed(exception);
                 LogPublishException(exception, correlationId, message.Topic);
-                return false;
             }
+            finally
+            {
+                MessagingMetrics.RecordPublish(ConnectionName, succeeded);
+            }
+
+            return succeeded;
         }
 
         private async Task PublishInitialStatesAsync(CancellationToken stoppingToken)
@@ -897,6 +906,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         {
             var topic = arg.ApplicationMessage.Topic;
             using var activity = MessageActivities.StartMessageConsumeActivity(topic, arg.ApplicationMessage.GetTraceParent());
+            MessagingMetrics.RecordConsume(ConnectionName);
             Guid correlationId;
             try
             {
@@ -947,6 +957,11 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         private async Task OnDisconnectedAsync(MqttClientDisconnectedEventArgs arg)
         {
+            if (arg.ClientWasConnected)
+            {
+                MessagingMetrics.RecordDisconnect(ConnectionName);
+            }
+
             _ = ForwardDisconnectAsync(arg);
 
             // Only CANCEL, don't dispose (still in use by running loops)
