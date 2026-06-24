@@ -40,7 +40,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="payload">The message payload. May be empty for a payload-less signal.</param>
         /// <param name="qos">The MQTT quality-of-service level.</param>
         /// <param name="retain">Whether the broker should retain the message.</param>
-        /// <returns><c>true</c> if the message was handed to a connected broker; <c>false</c> if it could not be published.</returns>
+        /// <returns><c>true</c> if the broker acknowledged the publish with a success reason code; <c>false</c> otherwise.</returns>
         /// <exception cref="ArgumentException">
         ///     Thrown when <paramref name="payload" /> is non-empty but <paramref name="schema" />
         ///     or <paramref name="contentType" /> is missing.
@@ -77,7 +77,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="errorCode">The optional <c>error_code</c> user-property value.</param>
         /// <param name="errorMessage">The optional <c>error_message</c> user-property value.</param>
         /// <param name="qos">The MQTT quality-of-service level.</param>
-        /// <returns><c>true</c> if the message was handed to a connected broker; <c>false</c> if it could not be published.</returns>
+        /// <returns><c>true</c> if the broker acknowledged the publish with a success reason code; <c>false</c> otherwise.</returns>
         /// <exception cref="ArgumentException">
         ///     Thrown when <paramref name="payload" /> is non-empty but <paramref name="schema" />
         ///     or <paramref name="contentType" /> is missing.

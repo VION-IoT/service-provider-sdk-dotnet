@@ -50,7 +50,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="correlationId">The correlation identifier for tracking the message flow.</param>
         /// <param name="retain">Whether the message should be retained by the broker.</param>
         /// <param name="cancellationToken">Cancellation token for the operation.</param>
-        /// <returns><c>true</c> if the health status was handed to a connected broker; otherwise <c>false</c>.</returns>
+        /// <returns><c>true</c> if the broker acknowledged the publish with a success reason code; <c>false</c> otherwise.</returns>
         /// <remarks>
         ///     Publishing does not throw on connection or transport failures — those are logged by the SDK and reported through
         ///     the <c>bool</c> result, so callers need not wrap publishes in try/catch. Passing a non-empty payload without a

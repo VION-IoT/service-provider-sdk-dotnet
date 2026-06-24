@@ -437,7 +437,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             try
             {
                 var result = await client.PublishAsync(message, cancellationToken);
-                if (result.IsSuccess)
+                if (result.ReasonCode == MqttClientPublishReasonCode.Success)
                 {
                     succeeded = true;
                     LogPublishSucceeded(correlationId, message.Topic);
