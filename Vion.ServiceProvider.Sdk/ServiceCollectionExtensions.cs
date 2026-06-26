@@ -16,8 +16,8 @@ namespace Vion.ServiceProvider.Sdk
     public static class ServiceCollectionExtensions
     {
         /// <summary>
-        ///     Registers a <see cref="ServiceProviderClient" /> (and <see cref="IServiceProviderClient" />), wires the default
-        ///     system-control handlers, and seeds
+        ///     Registers a <see cref="ServiceProviderClient" /> (and its <see cref="IServiceProviderClient" /> and
+        ///     <see cref="IServiceProviderPublisher" /> facets), wires the default system-control handlers, and seeds
         ///     <see cref="LogLevelManager" /> from configuration.
         /// </summary>
         /// <remarks>
@@ -74,6 +74,7 @@ namespace Vion.ServiceProvider.Sdk
                                                              return new ServiceProviderClient(clientConfiguration, factory, logger);
                                                          });
             services.AddSingleton<IServiceProviderClient>(serviceProvider => serviceProvider.GetRequiredService<ServiceProviderClient>());
+            services.AddSingleton<IServiceProviderPublisher>(serviceProvider => serviceProvider.GetRequiredService<ServiceProviderClient>());
 
             return services;
         }
