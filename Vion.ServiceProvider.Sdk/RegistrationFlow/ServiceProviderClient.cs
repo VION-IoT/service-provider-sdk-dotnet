@@ -224,6 +224,32 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                               bool retain = false)
         {
             return PublishPooledAsync(topic,
+                                      null,
+                                      correlationId,
+                                      contentType,
+                                      schema,
+                                      payload,
+                                      qos,
+                                      retain,
+                                      null,
+                                      null,
+                                      null,
+                                      cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public Task<bool> PublishRequestAsync(string topic,
+                                              string responseTopic,
+                                              Guid correlationId,
+                                              CancellationToken cancellationToken,
+                                              string? contentType = null,
+                                              string? schema = null,
+                                              ReadOnlyMemory<byte> payload = default,
+                                              MqttQualityOfServiceLevel qos = MqttQualityOfServiceLevel.AtMostOnce,
+                                              bool retain = false)
+        {
+            return PublishPooledAsync(topic,
+                                      responseTopic,
                                       correlationId,
                                       contentType,
                                       schema,
@@ -249,6 +275,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                MqttQualityOfServiceLevel qos = MqttQualityOfServiceLevel.AtMostOnce)
         {
             return PublishPooledAsync(topic,
+                                      null,
                                       correlationId,
                                       contentType,
                                       schema,
@@ -262,54 +289,23 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         }
 
         /// <inheritdoc />
-        public Task<bool> PublishHealthStatusAsync(string topic,
-                                                   ConnectionStatus connectionStatus,
-                                                   HealthStatus healthStatus,
-                                                   DateTime? since,
-                                                   string? reason,
-                                                   IServiceProviderPublisher client,
-                                                   Guid correlationId,
-                                                   bool retain,
-                                                   CancellationToken cancellationToken)
+        public Task<bool> PublishHealthStateAsync(CancellationToken cancellationToken)
         {
-            var payload = JsonSerializer.SerializeToUtf8Bytes(new ComponentHealthStatusPayload(new Component(client.ServiceProviderIdentifier!,
-                                                                                                             connectionStatus,
-                                                                                                             healthStatus,
-                                                                                                             since,
-                                                                                                             reason)),
-                                                              ServiceProviderJsonContext.Default.ComponentHealthStatusPayload);
-            return PublishPooledAsync(topic,
-                                      correlationId,
-                                      MessageMimeTypes.Json,
-                                      nameof(ComponentHealthStatusPayload),
-                                      payload,
-                                      MqttQualityOfServiceLevel.AtMostOnce,
-                                      retain,
-                                      null,
-                                      null,
-                                      null,
-                                      cancellationToken);
-        }
-
-        /// <inheritdoc />
-        public async Task PublishLogLevelStateAsync()
-        {
-            if (InstallationTopic == null || ServiceProviderIdentifier == null)
+            if (_topicComponentHealthState == null)
             {
-                return; // Not yet registered, skip publishing
+                LogCannotPublishHealthState();
+                return Task.FromResult(false);
             }
 
-            var correlationId = Guid.NewGuid();
-            var currentLevel = (_configuration.CurrentLogLevelProviderCallback ?? (() => LogLevelManager.CurrentLevel)).Invoke();
-            var topic = $"{InstallationTopic}/{ServiceProviderIdentifier}{Topics.ServiceProviderLogLevelState}";
-            var payload = JsonSerializer.SerializeToUtf8Bytes(new LogLevelStatePayload(currentLevel), ServiceProviderJsonContext.Default.LogLevelStatePayload);
-            await PublishMessageAsync(topic,
-                                      correlationId,
-                                      CancellationToken.None,
-                                      MessageMimeTypes.Json,
-                                      nameof(LogLevelStatePayload),
-                                      payload,
-                                      retain: true);
+            var health = _healthStateProviderFunc?.Invoke() ?? new HealthCheckResult(HealthStatus.Healthy);
+            return PublishComponentHealthAsync(_topicComponentHealthState,
+                                               ConnectionStatus.Online,
+                                               health.Status,
+                                               health.Since,
+                                               health.Reason,
+                                               Guid.NewGuid(),
+                                               true,
+                                               cancellationToken);
         }
 
         /// <inheritdoc />
@@ -324,42 +320,9 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             get => _operationalData?.ConnectionData.ServiceProviderIdentifier;
         }
 
-        private async Task<bool> PublishPooledAsync(string topic,
-                                                    Guid correlationId,
-                                                    string? contentType,
-                                                    string? schema,
-                                                    ReadOnlyMemory<byte> payload,
-                                                    MqttQualityOfServiceLevel qos,
-                                                    bool retain,
-                                                    RequestStatus? status,
-                                                    string? errorCode,
-                                                    string? errorMessage,
-                                                    CancellationToken cancellationToken)
-        {
-            var message = MessagePool.Rent();
-            try
-            {
-                FillMessage(message,
-                            topic,
-                            correlationId,
-                            contentType,
-                            schema,
-                            payload,
-                            qos,
-                            retain,
-                            status,
-                            errorCode,
-                            errorMessage);
-                return await PublishRawAsync(_operationalClient, message, correlationId, cancellationToken);
-            }
-            finally
-            {
-                MessagePool.Return(message);
-            }
-        }
-
         private static void FillMessage(MqttApplicationMessage message,
                                         string topic,
+                                        string? responseTopic,
                                         Guid correlationId,
                                         string? contentType,
                                         string? schema,
@@ -387,6 +350,11 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             message.QualityOfServiceLevel = qos;
             correlationId.TryWriteBytes(message.CorrelationData);
             message.Retain = retain;
+
+            if (responseTopic != null)
+            {
+                message.ResponseTopic = responseTopic;
+            }
 
             if (!payload.IsEmpty)
             {
@@ -419,6 +387,91 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             if (errorMessage != null)
             {
                 userProperties.Add(new MqttUserProperty(ErrorMessage.Name, Encoding.UTF8.GetBytes(errorMessage)));
+            }
+        }
+
+        private Task<bool> PublishComponentHealthAsync(string topic,
+                                                       ConnectionStatus connectionStatus,
+                                                       HealthStatus healthStatus,
+                                                       DateTime? since,
+                                                       string? reason,
+                                                       Guid correlationId,
+                                                       bool retain,
+                                                       CancellationToken cancellationToken)
+        {
+            var payload = JsonSerializer.SerializeToUtf8Bytes(new ComponentHealthStatusPayload(new Component(ServiceProviderIdentifier!,
+                                                                                                             connectionStatus,
+                                                                                                             healthStatus,
+                                                                                                             since,
+                                                                                                             reason)),
+                                                              ServiceProviderJsonContext.Default.ComponentHealthStatusPayload);
+            return PublishPooledAsync(topic,
+                                      null,
+                                      correlationId,
+                                      MessageMimeTypes.Json,
+                                      nameof(ComponentHealthStatusPayload),
+                                      payload,
+                                      MqttQualityOfServiceLevel.AtMostOnce,
+                                      retain,
+                                      null,
+                                      null,
+                                      null,
+                                      cancellationToken);
+        }
+
+        private async Task PublishLogLevelStateAsync()
+        {
+            if (InstallationTopic == null || ServiceProviderIdentifier == null)
+            {
+                return; // Not yet registered, skip publishing
+            }
+
+            var correlationId = Guid.NewGuid();
+            var currentLevel = (_configuration.CurrentLogLevelProviderCallback ?? (() => LogLevelManager.CurrentLevel)).Invoke();
+            var topic = $"{InstallationTopic}/{ServiceProviderIdentifier}{Topics.ServiceProviderLogLevelState}";
+            var payload = JsonSerializer.SerializeToUtf8Bytes(new LogLevelStatePayload(currentLevel), ServiceProviderJsonContext.Default.LogLevelStatePayload);
+            await PublishMessageAsync(topic,
+                                      correlationId,
+                                      CancellationToken.None,
+                                      MessageMimeTypes.Json,
+                                      nameof(LogLevelStatePayload),
+                                      payload,
+                                      retain: true);
+        }
+
+        private async Task<bool> PublishPooledAsync(string topic,
+                                                    string? responseTopic,
+                                                    Guid correlationId,
+                                                    string? contentType,
+                                                    string? schema,
+                                                    ReadOnlyMemory<byte> payload,
+                                                    MqttQualityOfServiceLevel qos,
+                                                    bool retain,
+                                                    RequestStatus? status,
+                                                    string? errorCode,
+                                                    string? errorMessage,
+                                                    CancellationToken cancellationToken)
+        {
+            var message = MessagePool.Rent();
+            try
+            {
+                FillMessage(message,
+                            topic,
+                            responseTopic,
+                            correlationId,
+                            contentType,
+                            schema,
+                            payload,
+                            qos,
+                            retain,
+                            status,
+                            errorCode,
+                            errorMessage);
+                return await PublishRawAsync(_operationalClient, message, correlationId, cancellationToken);
+            }
+            finally
+            {
+                MessagePool.Return(message);
             }
         }
 
@@ -465,15 +518,14 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         {
             var topicComponentHealthState =
                 ServiceProviderTopics.GetTopicComponentHealthState(_operationalData!.InstallationTopic, _operationalData!.ConnectionData.ServiceProviderIdentifier);
-            await PublishHealthStatusAsync(topicComponentHealthState,
-                                           ConnectionStatus.Online,
-                                           HealthStatus.Unknown,
-                                           DateTime.UtcNow,
-                                           null,
-                                           this,
-                                           Guid.NewGuid(),
-                                           true,
-                                           stoppingToken);
+            await PublishComponentHealthAsync(topicComponentHealthState,
+                                              ConnectionStatus.Online,
+                                              HealthStatus.Unknown,
+                                              DateTime.UtcNow,
+                                              null,
+                                              Guid.NewGuid(),
+                                              true,
+                                              stoppingToken);
 
             await PublishLogLevelStateAsync();
         }
@@ -547,15 +599,14 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
                                 if (!string.IsNullOrEmpty(responseTopic))
                                 {
-                                    await PublishHealthStatusAsync(responseTopic,
-                                                                   ConnectionStatus.Online,
-                                                                   health.Status,
-                                                                   health.Since,
-                                                                   health.Reason,
-                                                                   this,
-                                                                   correlationId,
-                                                                   false,
-                                                                   cancellationToken);
+                                    await PublishComponentHealthAsync(responseTopic,
+                                                                      ConnectionStatus.Online,
+                                                                      health.Status,
+                                                                      health.Since,
+                                                                      health.Reason,
+                                                                      correlationId,
+                                                                      false,
+                                                                      cancellationToken);
                                 }
                                 else
                                 {
@@ -618,15 +669,14 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         {
             if (_topicComponentHealthState != null)
             {
-                await PublishHealthStatusAsync(_topicComponentHealthState,
-                                               ConnectionStatus.Offline,
-                                               HealthStatus.Unknown,
-                                               DateTime.UtcNow,
-                                               null,
-                                               this,
-                                               Guid.NewGuid(),
-                                               true,
-                                               CancellationToken.None);
+                await PublishComponentHealthAsync(_topicComponentHealthState,
+                                                  ConnectionStatus.Offline,
+                                                  HealthStatus.Unknown,
+                                                  DateTime.UtcNow,
+                                                  null,
+                                                  Guid.NewGuid(),
+                                                  true,
+                                                  CancellationToken.None);
             }
             else
             {
@@ -766,6 +816,9 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Cannot publish offline health — not yet connected operationally")]
         private partial void LogCannotPublishOfflineHealth();
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Cannot publish health state — not yet connected operationally")]
+        private partial void LogCannotPublishHealthState();
 
         [LoggerMessage(Level = LogLevel.Information, Message = "Waiting for operational client to disconnect")]
         private partial void LogWaitingForOperationalClientDisconnect();

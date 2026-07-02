@@ -2,7 +2,6 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using MQTTnet;
-using Vion.Contracts.Events.MeshToCloud;
 
 namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 {
@@ -37,39 +36,5 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// <param name="appStoppingToken">Cancellation token for application shutdown.</param>
         /// <returns>A task representing the asynchronous operation.</returns>
         Task StartAsync(CancellationToken? appStoppingToken);
-
-        /// <summary>
-        ///     Publishes the health status of the service provider to the specified MQTT topic.
-        /// </summary>
-        /// <param name="topic">The MQTT topic to publish to.</param>
-        /// <param name="connectionStatus">The connection status of the service provider.</param>
-        /// <param name="healthStatus">The health status of the service provider.</param>
-        /// <param name="since">The timestamp since when this status has been active.</param>
-        /// <param name="reason">A human-readable reason for the current health state.</param>
-        /// <param name="client">The service provider client handler.</param>
-        /// <param name="correlationId">The correlation identifier for tracking the message flow.</param>
-        /// <param name="retain">Whether the message should be retained by the broker.</param>
-        /// <param name="cancellationToken">Cancellation token for the operation.</param>
-        /// <returns><c>true</c> if the broker acknowledged the publish with a success reason code; <c>false</c> otherwise.</returns>
-        /// <remarks>
-        ///     Publishing does not throw on connection or transport failures — those are logged by the SDK and reported through
-        ///     the <c>bool</c> result, so callers need not wrap publishes in try/catch. Passing a non-empty payload without a
-        ///     schema or content type is a usage error and still throws <see cref="ArgumentException" />.
-        /// </remarks>
-        Task<bool> PublishHealthStatusAsync(string topic,
-                                            ConnectionStatus connectionStatus,
-                                            HealthStatus healthStatus,
-                                            DateTime? since,
-                                            string? reason,
-                                            IServiceProviderPublisher client,
-                                            Guid correlationId,
-                                            bool retain,
-                                            CancellationToken cancellationToken);
-
-        /// <summary>
-        ///     Publishes the current log level state of the service provider.
-        /// </summary>
-        /// <returns>A task representing the asynchronous operation.</returns>
-        Task PublishLogLevelStateAsync();
     }
 }
