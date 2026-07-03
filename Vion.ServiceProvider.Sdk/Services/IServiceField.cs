@@ -15,12 +15,6 @@ namespace Vion.ServiceProvider.Sdk.Services
         /// <summary>The single source of truth for the field's wire-format type and its JSON-schema annotations.</summary>
         TypeSchema Schema { get; }
 
-        /// <summary>Whether the field accepts incoming <c>property/set</c> updates. Derived from <see cref="Schema" />.</summary>
-        bool IsWritable { get; }
-
-        /// <summary>Whether the field's broadcast value should be redacted. Derived from <see cref="Schema" />.</summary>
-        bool IsWriteOnly { get; }
-
         /// <summary>Optional UI presentation hints, emitted as the declaration's <c>presentation</c> sibling.</summary>
         Presentation? Presentation { get; }
     }

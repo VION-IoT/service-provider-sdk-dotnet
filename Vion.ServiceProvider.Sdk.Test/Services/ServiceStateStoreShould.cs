@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Moq;
+using Vion.Contracts.Conventions;
 using Vion.ServiceProvider.Sdk.Infrastructure;
 using Vion.ServiceProvider.Sdk.Services;
 using Vion.ServiceProvider.Sdk.Test.TestHelpers;
@@ -180,6 +181,43 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
 
             // Assert
             Assert.AreEqual(expectedPlain, updated.Plain);
+        }
+
+        [TestMethod]
+        public async Task PreserveStoredSecretWhenSentinelWritten()
+        {
+            // Arrange
+            await _sut.InitializeAsync(CancellationToken.None).WaitAsync(_testTimeout, CancellationToken.None);
+            var secret = Guid.NewGuid().ToString();
+            await _sut.UpdateAsync(TestSchema.Secret, JsonValue.Create(secret), CancellationToken.None).WaitAsync(_testTimeout, CancellationToken.None);
+
+            // Act
+            var updated = await _sut.UpdateAsync(TestSchema.Secret, JsonValue.Create(WriteOnlyConventions.RedactedSentinel), CancellationToken.None)
+                                    .WaitAsync(_testTimeout, CancellationToken.None);
+
+            // Assert
+            Assert.AreEqual(secret, updated.Secret);
+        }
+
+        [TestMethod]
+        public async Task PreserveStoredWriteOnlyMemberWhenSentinelWritten()
+        {
+            // Arrange
+            await _sut.InitializeAsync(CancellationToken.None).WaitAsync(_testTimeout, CancellationToken.None);
+            var token = Guid.NewGuid().ToString();
+            var expectedUser = Guid.NewGuid().ToString();
+            await _sut.UpdateAsync(TestSchema.Connection, new JsonObject { ["User"] = Guid.NewGuid().ToString(), ["Token"] = token }, CancellationToken.None)
+                      .WaitAsync(_testTimeout, CancellationToken.None);
+
+            // Act
+            var updated = await _sut.UpdateAsync(TestSchema.Connection,
+                                                 new JsonObject { ["User"] = expectedUser, ["Token"] = WriteOnlyConventions.RedactedSentinel },
+                                                 CancellationToken.None)
+                                    .WaitAsync(_testTimeout, CancellationToken.None);
+
+            // Assert
+            Assert.AreEqual(expectedUser, updated.User);
+            Assert.AreEqual(token, updated.Token);
         }
 
         [TestMethod]

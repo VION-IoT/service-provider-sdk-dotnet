@@ -5,7 +5,7 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using MQTTnet.Protocol;
-using Vion.Contracts.Conventions;
+using Vion.Contracts.Codec;
 using Vion.Contracts.Events.ServiceProviderToMesh;
 using Vion.Contracts.Mqtt;
 using Vion.ServiceProvider.Sdk.JsonSerializationContexts;
@@ -23,7 +23,7 @@ namespace Vion.ServiceProvider.Sdk.Services
         /// <inheritdoc />
         public Task PublishFieldAsync(IServiceProviderPublisher publisher, string serviceIdentifier, IServiceField field, JsonNode? value, CancellationToken cancellationToken)
         {
-            var publishedValue = field.IsWriteOnly && value is not null ? JsonValue.Create(WriteOnlyConventions.RedactedSentinel) : value;
+            var publishedValue = WriteOnlyCodec.Redact(field.Schema, value);
             var (payload, schema) = field.Kind switch
             {
                 ServiceFieldKind.Property => (JsonSerializer.SerializeToUtf8Bytes(new PropertyStatePayload(publishedValue),

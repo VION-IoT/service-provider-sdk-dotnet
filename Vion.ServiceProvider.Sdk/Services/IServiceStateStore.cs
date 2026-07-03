@@ -33,7 +33,11 @@ namespace Vion.ServiceProvider.Sdk.Services
 
         /// <summary>Applies a single field update, persists, and raises <see cref="StateChanged" />.</summary>
         /// <param name="field">The field to update.</param>
-        /// <param name="value">The new value, or <c>null</c> to clear the field.</param>
+        /// <param name="value">
+        ///     The new value, or <c>null</c> to clear the field. A WriteOnly position holding the redaction
+        ///     sentinel keeps its currently stored value; array items resolve against the stored item at the
+        ///     same position.
+        /// </param>
         /// <param name="cancellationToken">A token to cancel the update.</param>
         /// <returns>The new snapshot after the field is applied.</returns>
         /// <exception cref="InvalidOperationException">The store has not been initialized.</exception>

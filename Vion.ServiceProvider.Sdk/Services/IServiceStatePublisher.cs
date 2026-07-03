@@ -17,8 +17,9 @@ namespace Vion.ServiceProvider.Sdk.Services
         /// <param name="cancellationToken">A token to cancel the publish.</param>
         /// <exception cref="OperationCanceledException">The publish was canceled via <paramref name="cancellationToken" />.</exception>
         /// <remarks>
-        ///     For write-only fields, a non-null <paramref name="value" /> is replaced with the redacted
-        ///     sentinel before broadcast.
+        ///     WriteOnly positions — a write-only field's whole value, or a struct field's write-only members
+        ///     (per item for arrays of structs) — are replaced with the redacted sentinel before broadcast;
+        ///     a null position stays null so a client can still tell an empty secret from a stored, hidden one.
         /// </remarks>
         Task PublishFieldAsync(IServiceProviderPublisher publisher, string serviceIdentifier, IServiceField field, JsonNode? value, CancellationToken cancellationToken);
     }

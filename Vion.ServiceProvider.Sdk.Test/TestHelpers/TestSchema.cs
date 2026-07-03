@@ -9,7 +9,7 @@ namespace Vion.ServiceProvider.Sdk.Test.TestHelpers
 {
     // Public (not internal) so Moq's proxy generator can reference it where it surfaces as a generic argument of a
     // mocked collaborator (e.g. ILogger<ServiceStateStore<TestServiceState>>) without granting InternalsVisibleTo to the proxy assembly.
-    public sealed record TestServiceState(string Plain = "", string? Secret = null, double Reading = 0);
+    public sealed record TestServiceState(string Plain = "", string? Secret = null, double Reading = 0, string User = "", string? Token = null);
 
     [JsonSourceGenerationOptions(WriteIndented = true,
                                  DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
@@ -42,6 +42,33 @@ namespace Vion.ServiceProvider.Sdk.Test.TestHelpers
                                                                                                             (state, value) =>
                                                                                                                 state with { Reading = value?.GetValue<double>() ?? 0 });
 
+        public static readonly IServiceField<TestServiceState> Connection = new ServiceField<TestServiceState>("Connection",
+                                                                                                               ServiceFieldKind.Property,
+                                                                                                               new TypeSchema(new StructTypeRef("Connection",
+                                                                                                                       [
+                                                                                                                           new StructField("User",
+                                                                                                                               new PrimitiveTypeRef(PrimitiveKind.String)),
+                                                                                                                           new StructField("Token",
+                                                                                                                               new NullableTypeRef(new
+                                                                                                                                   PrimitiveTypeRef(PrimitiveKind
+                                                                                                                                       .String))),
+                                                                                                                       ],
+                                                                                                                       ["User"]),
+                                                                                                                   TypeAnnotations.None,
+                                                                                                                   ImmutableDictionary<string, TypeAnnotations>.Empty.Add("Token",
+                                                                                                                       new TypeAnnotations { WriteOnly = true })),
+                                                                                                               state => new JsonObject
+                                                                                                                   {
+                                                                                                                       ["User"] = JsonValue.Create(state.User),
+                                                                                                                       ["Token"] = state.Token is null ? null :
+                                                                                                                           JsonValue.Create(state.Token),
+                                                                                                                   },
+                                                                                                               (state, value) => value is JsonObject members ? state with
+                                                                                                               {
+                                                                                                                   User = members["User"]?.GetValue<string>() ?? "",
+                                                                                                                   Token = members["Token"]?.GetValue<string>(),
+                                                                                                               } : state);
+
         public override string ServiceIdentifier
         {
             get => "test-service";
@@ -54,7 +81,7 @@ namespace Vion.ServiceProvider.Sdk.Test.TestHelpers
 
         public override IReadOnlyList<IServiceField<TestServiceState>> All
         {
-            get => [Plain, Secret, Reading];
+            get => [Plain, Secret, Reading, Connection];
         }
     }
 }

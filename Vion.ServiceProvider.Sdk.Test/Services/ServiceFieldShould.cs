@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Immutable;
 using Vion.Contracts.TypeRef;
 using Vion.ServiceProvider.Sdk.Services;
 
@@ -52,56 +51,6 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
 
             // Assert
             Assert.IsTrue(invoked);
-        }
-
-        [TestMethod]
-        public void ReportWriteOnlyFromTypeSchemaAnnotations()
-        {
-            // Arrange
-            var schema = new TypeSchema(new PrimitiveTypeRef(PrimitiveKind.String), new TypeAnnotations { WriteOnly = true }, ImmutableDictionary<string, TypeAnnotations>.Empty);
-
-            // Act
-            var sut = new ServiceField<TestService>(Guid.NewGuid().ToString(), ServiceFieldKind.Property, schema, _ => null, (service, _) => service);
-
-            // Assert
-            Assert.IsTrue(sut.IsWriteOnly);
-        }
-
-        [TestMethod]
-        public void NotReportWriteOnlyWhenNotAnnotated()
-        {
-            // Arrange
-
-            // Act
-            var sut = new ServiceField<TestService>(Guid.NewGuid().ToString(), ServiceFieldKind.Property, Schema, _ => null, (service, _) => service);
-
-            // Assert
-            Assert.IsFalse(sut.IsWriteOnly);
-        }
-
-        [TestMethod]
-        public void ReportNotWritableWhenReadOnly()
-        {
-            // Arrange
-            var schema = new TypeSchema(new PrimitiveTypeRef(PrimitiveKind.String), new TypeAnnotations { ReadOnly = true }, ImmutableDictionary<string, TypeAnnotations>.Empty);
-
-            // Act
-            var sut = new ServiceField<TestService>(Guid.NewGuid().ToString(), ServiceFieldKind.Property, schema, _ => null, (service, _) => service);
-
-            // Assert
-            Assert.IsFalse(sut.IsWritable);
-        }
-
-        [TestMethod]
-        public void ReportWritableWhenNotReadOnly()
-        {
-            // Arrange
-
-            // Act
-            var sut = new ServiceField<TestService>(Guid.NewGuid().ToString(), ServiceFieldKind.Property, Schema, _ => null, (service, _) => service);
-
-            // Assert
-            Assert.IsTrue(sut.IsWritable);
         }
 
         private sealed record TestService;

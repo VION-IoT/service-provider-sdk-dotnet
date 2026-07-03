@@ -6,6 +6,7 @@ using System.Text.Json.Serialization.Metadata;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Vion.Contracts.Codec;
 using Vion.ServiceProvider.Sdk.Infrastructure;
 
 namespace Vion.ServiceProvider.Sdk.Services
@@ -115,7 +116,8 @@ namespace Vion.ServiceProvider.Sdk.Services
                     throw new InvalidOperationException($"{nameof(ServiceStateStore<>)} must be initialized before {nameof(UpdateAsync)}.");
                 }
 
-                newState = field.WriteTo(_current, value);
+                var resolved = WriteOnlyCodec.Resolve(field.Schema, value, field.ReadFrom(_current));
+                newState = field.WriteTo(_current, resolved);
                 Persist(newState);
                 _current = newState;
                 LogUpdatedState(field.Name);

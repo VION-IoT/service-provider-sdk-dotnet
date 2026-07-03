@@ -47,18 +47,6 @@ namespace Vion.ServiceProvider.Sdk.Services
         public TypeSchema Schema { get; }
 
         /// <inheritdoc />
-        public bool IsWritable
-        {
-            get => !Schema.Annotations.ReadOnly;
-        }
-
-        /// <inheritdoc />
-        public bool IsWriteOnly
-        {
-            get => Schema.Annotations.WriteOnly;
-        }
-
-        /// <inheritdoc />
         public Presentation? Presentation { get; }
 
         /// <inheritdoc />
