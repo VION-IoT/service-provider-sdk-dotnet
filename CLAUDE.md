@@ -128,10 +128,14 @@ Versions on nuget.org are immutable.
 Canonical reference: [`docs/releasing.md`](docs/releasing.md) +
 [`publish.yml`](.github/workflows/publish.yml).
 
-When a major bump in [`Vion.Contracts`](https://github.com/vion-iot/vion-contracts)
-introduces breaking schema changes, this SDK's version moves in
-lockstep — consumers expect a matched `Vion.Contracts` /
-`Vion.ServiceProvider.Sdk` pair.
+This SDK versions on its own surface — its public API plus the wire
+messages it produces and consumes. A
+[`Vion.Contracts`](https://github.com/vion-iot/vion-contracts) bump
+forces a matching SDK major only when it breaks one of those (a payload
+the SDK sends or receives, or a contracts type exposed in the SDK's
+public API). A contracts change the SDK doesn't surface — additive, or
+to a payload the SDK never touches — is an ordinary dependency bump,
+even across a contracts major.
 
 ## Source availability
 
