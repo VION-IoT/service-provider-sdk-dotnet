@@ -74,6 +74,21 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
         }
 
         [TestMethod]
+        public async Task StartWithDefaultStateWhenPersistedStateIsMalformed()
+        {
+            // Arrange
+            _diskState[StateFilePath] = "{ not valid json";
+
+            // Act
+            var loaded = await _sut.InitializeAsync(CancellationToken.None).WaitAsync(_testTimeout, CancellationToken.None);
+
+            // Assert
+            Assert.AreEqual("", loaded.Plain);
+            Assert.IsNull(loaded.Secret);
+            Assert.AreEqual(0d, loaded.Reading);
+        }
+
+        [TestMethod]
         public async Task NotifySubscribersOfStateChangeOnInitialize()
         {
             // Arrange

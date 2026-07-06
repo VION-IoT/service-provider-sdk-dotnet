@@ -80,15 +80,25 @@ namespace Vion.ServiceProvider.Sdk.Services
                 else
                 {
                     var json = _diskAccessProvider.ReadAllText(_stateFilePath);
-                    var loaded = JsonSerializer.Deserialize(json, _typeInfo);
-                    if (loaded != null)
+                    try
                     {
-                        _current = loaded;
-                        LogLoadedState(_stateFilePath);
+                        var loaded = JsonSerializer.Deserialize(json, _typeInfo);
+                        if (loaded != null)
+                        {
+                            _current = loaded;
+                            LogLoadedState(_stateFilePath);
+                        }
+                        else
+                        {
+                            LogStateFileEmpty(_stateFilePath);
+                        }
                     }
-                    else
+                    catch (JsonException exception)
                     {
-                        LogStateFileEmpty(_stateFilePath);
+                        // A malformed or type-incompatible state file must not brick startup: fall back to the
+                        // default state so the service starts and can be corrected through the normal update
+                        // path. The next update overwrites the bad file.
+                        LogStateFileUnreadable(exception, _stateFilePath);
                     }
                 }
 
@@ -188,6 +198,10 @@ namespace Vion.ServiceProvider.Sdk.Services
 
         [LoggerMessage(Level = LogLevel.Information, Message = "Persisted state file '{Path}' is empty — starting with default state")]
         private partial void LogStateFileEmpty(string path);
+
+        [LoggerMessage(Level = LogLevel.Error,
+                       Message = "Persisted state file '{Path}' could not be deserialized — starting with default state; it will be overwritten on the next update")]
+        private partial void LogStateFileUnreadable(Exception exception, string path);
 
         [LoggerMessage(Level = LogLevel.Information, Message = "No persisted state file at '{Path}' — starting with default state")]
         private partial void LogStateFileMissing(string path);
