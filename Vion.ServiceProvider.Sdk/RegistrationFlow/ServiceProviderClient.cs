@@ -1325,7 +1325,6 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
                                                               if (eventArgs.ApplicationMessage.Topic == registrationDeniedTopic)
                                                               {
-
                                                                   LogRegistrationDenied(RegistrationRepublishIntervalSeconds, correlationId);
                                                                   return Task.CompletedTask;
                                                               }
