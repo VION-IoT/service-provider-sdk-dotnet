@@ -129,7 +129,8 @@ stateDiagram-v2
         - Subscribe: system/.../accepted/{secret}
         - Subscribe: system/.../denied/{secret}
         - Publish: system/.../request/{secret} (retained, payload carries serviceProviderIdentifier)
-        - Retry every 30 seconds until accepted
+        - Republish every 30 seconds until accepted
+        - Denial is non-terminal: logged, republishing continues, recovers when cleared
     end note
     
     note right of SetupSchemaPhase
@@ -180,8 +181,10 @@ stateDiagram-v2
 3. **PublishingRegistration**: Publish the registration request to `system/serviceProvider/registration/request/{secret}` with QoS 1, retained, content-type `application/json`,
    payload `ServiceProviderRegistrationRequestPayload` carrying the `serviceProviderIdentifier` (mesh reads the identifier from the payload, not the topic).
 
-4. **WaitingForAcceptance**: Wait for a registration response. If no response is received within 30 seconds, republish the registration request. This loop continues until
-   acceptance is received or the flow is cancelled.
+4. **WaitingForAcceptance**: Wait for a registration response. The registration request is (re)published every 30 seconds until a response arrives — publishing on an interval
+   (rather than once) is deliberate: it is what makes a denial recoverable. A denial (`system/serviceProvider/registration/denied/{secret}`) is treated as **non-terminal** — it is
+   logged at warning level and the loop keeps republishing on the same 30-second interval, so the service provider registers on its own once the denial is cleared in the cloud, with
+   no restart. This loop continues until acceptance is received or the flow is cancelled.
 
 **Exit Conditions**:
 

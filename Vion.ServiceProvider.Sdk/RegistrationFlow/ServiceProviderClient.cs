@@ -38,6 +38,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
     {
         private const string ConnectionName = "Local";
 
+        private const int RegistrationRepublishIntervalSeconds = 30;
+
         private static readonly ObjectPool<MqttApplicationMessage> MessagePool = new(static () => new MqttApplicationMessage
                                                                                                   {
                                                                                                       CorrelationData = new byte[16],
@@ -896,6 +898,11 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         [LoggerMessage(Level = LogLevel.Warning,
                        Message =
+                           "Registration denied — the SDK will keep re-publishing the registration request every {IntervalSeconds}s until it is accepted (CorrelationId={CorrelationId})")]
+        private partial void LogRegistrationDenied(int intervalSeconds, Guid correlationId);
+
+        [LoggerMessage(Level = LogLevel.Warning,
+                       Message =
                            "Registration client disconnected — will republish retained message on reconnect (ReasonString={ReasonString}, Reason={Reason}, CorrelationId={CorrelationId})")]
         private partial void LogRegistrationClientDisconnected(string? reasonString, MqttClientDisconnectReason reason, Guid correlationId);
 
@@ -1316,12 +1323,20 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                                   return Task.CompletedTask;
                                                               }
 
+                                                              if (eventArgs.ApplicationMessage.Topic == registrationDeniedTopic)
+                                                              {
+
+                                                                  LogRegistrationDenied(RegistrationRepublishIntervalSeconds, correlationId);
+                                                                  return Task.CompletedTask;
+                                                              }
+
                                                               LogUnexpectedRegistrationMessage(eventArgs.ApplicationMessage.Topic, eventArgs.ResponseReasonString, correlationId);
 
                                                               return Task.CompletedTask;
                                                           };
                 var needsPublish = true;
                 var publishCount = 0;
+                var lastPublishAttempt = DateTime.UtcNow;
 
                 client.DisconnectedAsync += e =>
                                             {
@@ -1360,9 +1375,12 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                             needsPublish = true; // Republish after reconnection
                         }
 
-                        if (needsPublish)
+                        // Re-publish on a fixed interval, not just once, so a denied service provider recovers on its own: once
+                        // the deny is cleared in the cloud, the next republish is accepted and startup proceeds — no restart needed.
+                        if (needsPublish || DateTime.UtcNow - lastPublishAttempt >= TimeSpan.FromSeconds(RegistrationRepublishIntervalSeconds))
                         {
                             publishCount++;
+                            lastPublishAttempt = DateTime.UtcNow;
                             var publishSucceeded = await PublishRawAsync(client, msg, correlationId, registrationToken);
                             if (publishSucceeded)
                             {
