@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -52,12 +53,26 @@ namespace Vion.ServiceProvider.Sdk
         ///     Builds the client configuration, resolving services from the provided <see cref="IServiceProvider" /> as needed
         ///     (e.g. for handler construction).
         /// </param>
+        /// <param name="logLevelFilePath">
+        ///     The file a cloud-set log level is persisted to (and restored from at startup, overriding the configuration
+        ///     default). Defaults to <c>data/logLevel.txt</c> under the application base directory.
+        /// </param>
         /// <returns>The service collection, for chaining.</returns>
         public static IServiceCollection AddVionServiceProviderSdk(this IServiceCollection services,
                                                                    IConfiguration configuration,
-                                                                   Func<IServiceProvider, ServiceProviderClientConfiguration> configure)
+                                                                   Func<IServiceProvider, ServiceProviderClientConfiguration> configure,
+                                                                   string? logLevelFilePath = null)
         {
             LogLevelManager.InitializeFromConfig(configuration);
+
+            var logLevelStore = new LogLevelStore(new DiskAccessProvider(), logLevelFilePath ?? Path.Combine(AppContext.BaseDirectory, "data", "logLevel.txt"));
+            var persistedLogLevel = logLevelStore.Read();
+            if (persistedLogLevel.HasValue)
+            {
+                LogLevelManager.CurrentLevel = persistedLogLevel.Value;
+            }
+
+            services.AddSingleton<ILogLevelStore>(logLevelStore);
             services.AddSingleton<IDiskAccessProvider, DiskAccessProvider>();
             services.AddSingleton<RestartHandler>();
             services.AddSingleton<SetLogLevelHandler>();

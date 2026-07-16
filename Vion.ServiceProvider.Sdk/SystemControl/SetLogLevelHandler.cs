@@ -10,26 +10,30 @@ using Vion.ServiceProvider.Sdk.RegistrationFlow;
 namespace Vion.ServiceProvider.Sdk.SystemControl
 {
     /// <summary>
-    ///     The default <c>logLevel/set</c> handler: parses the incoming payload and updates
-    ///     <see cref="LogLevelManager.CurrentLevel" />.
+    ///     The default <c>logLevel/set</c> handler: parses the incoming payload, updates
+    ///     <see cref="LogLevelManager.CurrentLevel" />, and persists it so the change survives a restart.
     ///     Wired by <c>AddVionServiceProviderSdk</c>; service providers using the raw builder may also override the default
     ///     via <c>WithLogLevelChangeCallback</c>.
     /// </summary>
     public sealed partial class SetLogLevelHandler
     {
+        private readonly ILogLevelStore _logLevelStore;
+
         private readonly ILogger<SetLogLevelHandler> _logger;
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="SetLogLevelHandler" /> class.
         /// </summary>
+        /// <param name="logLevelStore">The store the applied level is persisted to.</param>
         /// <param name="logger">The logger.</param>
-        public SetLogLevelHandler(ILogger<SetLogLevelHandler> logger)
+        public SetLogLevelHandler(ILogLevelStore logLevelStore, ILogger<SetLogLevelHandler> logger)
         {
+            _logLevelStore = logLevelStore;
             _logger = logger;
         }
 
         /// <summary>
-        ///     Handles a <c>logLevel/set</c> message by updating <see cref="LogLevelManager.CurrentLevel" />.
+        ///     Handles a <c>logLevel/set</c> message by updating <see cref="LogLevelManager.CurrentLevel" /> and persisting it.
         /// </summary>
         /// <param name="publisher">The publish-only surface (unused — this handler does not respond).</param>
         /// <param name="message">The received MQTT message carrying a <c>SetLogLevelPayload</c>.</param>
@@ -40,6 +44,7 @@ namespace Vion.ServiceProvider.Sdk.SystemControl
             var payload = message.GetJsonPayload(ServiceProviderJsonContext.Default.SetLogLevelPayload);
             LogSettingLogLevel(LogLevelManager.CurrentLevel, payload.LogLevel, correlationId);
             LogLevelManager.CurrentLevel = payload.LogLevel;
+            _logLevelStore.Write(payload.LogLevel);
 
             return Task.CompletedTask;
         }
