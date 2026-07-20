@@ -72,7 +72,7 @@ Reference shape from
 
 ```csharp
 var secret = await LoadOrCreateSecretAsync(secretFilePath);
-var config = new ServiceProviderClientConfigurationBuilder(mqttConnectionData, secret)
+var config = new ServiceProviderClientConfigurationBuilder(mqttConnectionData, secret, RegistrationCredentials.WellKnown)
     .WithDeclaration(setup.CreateDeclarationCallback)
     .WithHandlers(setup.CreateHandlers)
     .WithRestartCallback(/* ... */)
@@ -82,9 +82,11 @@ var client = new ServiceProviderClient(config, new MqttClientFactory(), logger);
 await client.StartAsync(stoppingToken);
 ```
 
-Two inputs the SP author always provides: `mqttConnectionData` (broker
-host / port / TLS) and `secret` (the **pairing secret** — typically
-loaded from `data/secret.txt`, created on first run). The SDK uses both
+Three inputs the SP author always provides: `mqttConnectionData` (broker
+host / port / TLS), `secret` (the **pairing secret** — typically
+loaded from `data/secret.txt`, created on first run), and
+`RegistrationCredentials.WellKnown` (from `Vion.Contracts.Mqtt`) — the fixed,
+public credentials the registration connection authenticates with. The SDK uses them
 only to complete registration; mesh issues operational nanomq
 credentials on acceptance, and the SDK reconnects with those.
 

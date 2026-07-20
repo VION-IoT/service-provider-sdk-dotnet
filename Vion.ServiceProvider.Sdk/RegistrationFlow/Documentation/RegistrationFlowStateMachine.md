@@ -515,7 +515,7 @@ gracefully, allowing the new flow to proceed without conflicts.
 - **Client ID**: `{serviceProviderIdentifier}`
 - **Protocol**: MQTT 5.0
 - **Broker**: From configuration (default: `nanomq:1883`)
-- **Credentials**: None (anonymous connection)
+- **Credentials**: The well-known `registration` bootstrap user (`RegistrationCredentials.WellKnown`)
 - **Lifetime**: Temporary (disconnected after registration accepted)
 
 ### Operational Client
