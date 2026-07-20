@@ -88,6 +88,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         private volatile OperationalData? _operationalData;
 
+        private RegistrationCredentials? _registrationCredentials;
+
         [SuppressMessage("Usage",
                          "CA2213:Disposable fields should be disposed",
                          Justification =
@@ -179,12 +181,13 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
                 _connectionData = _configuration.ConnectionData;
                 _secret = _configuration.Secret;
+                _registrationCredentials = _configuration.RegistrationCredentials;
                 var stoppingToken = _appStoppingToken!.Value;
 
                 try
                 {
                     // execute flow
-                    _operationalData = await RegisterAsync(_connectionData, _secret, stoppingToken);
+                    _operationalData = await RegisterAsync(_connectionData, _secret, _registrationCredentials.Value, stoppingToken);
                     if (!await ConnectOperationalClientAsync(stoppingToken))
                     {
                         //  MQTTnet has already fired DisconnectedAsync, so OnDisconnectedAsync will run the next attempt.
@@ -1247,7 +1250,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             }
         }
 
-        private async Task<OperationalData> RegisterAsync(MqttConnectionData connectionData, string secret, CancellationToken ct)
+        private async Task<OperationalData> RegisterAsync(MqttConnectionData connectionData, string secret, RegistrationCredentials registrationCredentials, CancellationToken ct)
         {
             // Create cancellation source that cancels on disconnection OR app stopping
             SafeCancelAndDispose(ref _registrationCts, nameof(_registrationCts));
@@ -1263,6 +1266,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 var registrationOptions = new MqttClientOptionsBuilder().WithClientId(connectionData.ServiceProviderIdentifier)
                                                                         .WithProtocolVersion(MqttProtocolVersion.V500)
                                                                         .WithTcpServer(connectionData.Host, connectionData.Port)
+                                                                        .WithCredentials(registrationCredentials.Username, registrationCredentials.Password)
                                                                         .Build();
 
                 var mqttClientSubscribeOptions = new MqttClientSubscribeOptions

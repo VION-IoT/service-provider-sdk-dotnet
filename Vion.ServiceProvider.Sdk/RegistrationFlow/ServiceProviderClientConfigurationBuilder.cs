@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Vion.Contracts.Events.MeshToCloud;
+using Vion.Contracts.Mqtt;
 using Vion.ServiceProvider.Sdk.Setup;
 
 namespace Vion.ServiceProvider.Sdk.RegistrationFlow
@@ -39,9 +40,16 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         /// </summary>
         /// <param name="connectionData">The MQTT connection data.</param>
         /// <param name="secret">The secret for authentication.</param>
-        public ServiceProviderClientConfigurationBuilder(MqttConnectionData connectionData, string secret)
+        /// <param name="registrationCredentials">
+        ///     The well-known, bootstrap credentials the registration client authenticates with for the
+        ///     pre-registration handshake. Pass <see cref="RegistrationCredentials.WellKnown" />.
+        /// </param>
+        public ServiceProviderClientConfigurationBuilder(MqttConnectionData connectionData, string secret, RegistrationCredentials registrationCredentials)
         {
-            Configuration = new ServiceProviderClientConfiguration { ConnectionData = connectionData, Secret = secret };
+            Configuration = new ServiceProviderClientConfiguration
+                            {
+                                ConnectionData = connectionData, Secret = secret, RegistrationCredentials = registrationCredentials,
+                            };
         }
 
         /// <summary>
@@ -122,6 +130,12 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         ///     Gets or initializes the authentication secret.
         /// </summary>
         public required string Secret { get; init; }
+
+        /// <summary>
+        ///     Gets or initializes the well-known, bootstrap credentials the registration client authenticates with
+        ///     for the pre-registration handshake.
+        /// </summary>
+        public required RegistrationCredentials RegistrationCredentials { get; init; }
 
         /// <summary>
         ///     Gets or sets the callback for setting up message handlers.
