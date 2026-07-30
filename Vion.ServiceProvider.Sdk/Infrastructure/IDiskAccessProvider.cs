@@ -21,5 +21,15 @@
         /// <param name="path">The file path to write to.</param>
         /// <param name="contents">The contents to write.</param>
         void WriteAllText(string path, string contents);
+
+        /// <summary>Moves the file, optionally replacing an existing destination.</summary>
+        /// <param name="sourcePath">The file to move.</param>
+        /// <param name="destinationPath">The path to move it to.</param>
+        /// <param name="overwrite">Whether an existing destination file is replaced.</param>
+        void MoveFile(string sourcePath, string destinationPath, bool overwrite);
+
+        /// <summary>Deletes the file if it exists. Does nothing when it does not.</summary>
+        /// <param name="path">The file path to delete.</param>
+        void DeleteFile(string path);
     }
 }

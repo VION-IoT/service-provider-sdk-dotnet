@@ -7,20 +7,46 @@ description: State machine diagram and description of the service provider regis
 
 This document describes the state machine that governs the lifecycle of a service provider from initial registration through operational messaging with the Dale runtime.
 
+## The registration contract
+
+Everything below follows from two invariants the platform guarantees, and they are worth stating first — a service provider written against them needs no guesswork about broker
+internals:
+
+1. **Every request mints a new operational password, and the previous one stops working.** Assuming this is always safe: where a deployment happens to reuse an existing password
+   instead, the service provider simply receives the same one twice, which costs it nothing.
+2. **Credentials in an accepted message were tested and were valid when it was published.** They are connected with against the broker before being issued.
+
+What follows from them:
+
+- **A broker refusing credentials with `0x86`/`0x87` means they have since become invalidated** — never "not applied yet". Retrying them cannot help; request new ones. Other broker
+  errors may be transient, so retrying the connection is fine.
+- **Requesting faster than the round trip destroys each answer before it can be used**, since each request invalidates the last password. The round trip is ~3s healthy and under
+  ~15s loaded, which is what makes the 30-second default safe.
+- **Nothing is retained**, so a service provider has to keep requesting until it is accepted. A denial is informational, not terminal.
+- **Approval is polled, not pushed.** A customer's decision arrives on the next request, so the republish interval is also the approval latency.
+- **Credentials may be cached and tried first on reconnect**, which is what removes registration from the reconnect path entirely. There is no guarantee a cached credential is still
+  valid — the broker's password file can be recreated by a platform update — so the rule above applies: a refusal means it is dead, so register again rather than retrying it.
+- **The secret is proof of identity and must be high-entropy random.** It is stored as a fast unsalted hash, on the assumption that it cannot be guessed or brute-forced.
+
 ## State Machine Diagram
 
 ```mermaid
 stateDiagram-v2
     [*] --> Initializing: StartAsync()
-    
-    Initializing --> RegisteringConnection: Generate/Load Secret
-    
+
+    Initializing --> CheckingHeldCredentials: Load configuration
+
+    CheckingHeldCredentials --> ConnectingOperational: Credentials held (in memory, or persisted from an earlier process)
+    CheckingHeldCredentials --> RegisteringConnection: None held
+
     state RegisteringConnection {
         [*] --> ConnectingToRegistrationBroker
+        ConnectingToRegistrationBroker --> ConnectingToRegistrationBroker: Connection refused / retry
         ConnectingToRegistrationBroker --> SubscribedToRegistrationResponse: Subscribe to accepted/denied topics
         SubscribedToRegistrationResponse --> PublishingRegistration: Publish registration request
         PublishingRegistration --> WaitingForAcceptance: Wait for response
-        WaitingForAcceptance --> PublishingRegistration: Timeout (30s) / Republish
+        WaitingForAcceptance --> PublishingRegistration: Republish interval elapsed
+        WaitingForAcceptance --> PublishingRegistration: Denied (informational, loop continues)
         WaitingForAcceptance --> [*]: Registration Accepted
     }
     
@@ -36,7 +62,9 @@ stateDiagram-v2
     }
     
     ConnectingOperational --> SetupSchemaPhase: Connected
-    ConnectingOperational --> Disconnected: Connection failed
+    ConnectingOperational --> RegisteringConnection: Credentials refused (0x86/0x87) — discarded
+    ConnectingOperational --> Disconnected: Transport failure (credentials kept, retried)
+    ConnectingOperational --> RegisteringConnection: Unreachable for 90s — discarded, endpoint no longer trusted
 
     state SetupSchemaPhase {
         [*] --> CheckSetupRequired
@@ -44,7 +72,7 @@ stateDiagram-v2
         CheckSetupRequired --> SubscribeToSelectionTopic: Setup schema configured
         SubscribeToSelectionTopic --> PublishingSetupSchema: Subscribe to selection topic
         PublishingSetupSchema --> WaitingForSelection: Publish setup schema
-        WaitingForSelection --> PublishingSetupSchema: Timeout (1 min) / Republish
+        WaitingForSelection --> PublishingSetupSchema: Publish failed / Republish
         WaitingForSelection --> ValidatingSelection: Selection received
         ValidatingSelection --> WaitingForSelection: Validation failed
         ValidatingSelection --> BuildingDeclaration: Validation success
@@ -110,7 +138,7 @@ stateDiagram-v2
         RestartingFlow --> [*]: Trigger StartAsync()
     }
     
-    Disconnected --> RegisteringConnection: Auto-reconnect
+    Disconnected --> CheckingHeldCredentials: Auto-reconnect
     Disconnected --> [*]: App shutdown
     
     Operational --> ShuttingDown: App stopping token cancelled
@@ -125,12 +153,14 @@ stateDiagram-v2
     
     note right of RegisteringConnection
         Registration broker:
-        - Connect with serviceProviderIdentifier as clientId
-        - Subscribe: system/.../accepted/{secret}
-        - Subscribe: system/.../denied/{secret}
-        - Publish: system/.../request/{secret} (retained, payload carries serviceProviderIdentifier)
-        - Republish every 30 seconds until accepted
+        - Connect with a fresh random GUID as clientId (the registration client-id)
+        - Subscribe: system/.../accepted/{registrationClientId}
+        - Subscribe: system/.../denied/{registrationClientId}
+        - Publish: system/.../request/{registrationClientId}
+          (NOT retained; payload carries serviceProviderIdentifier + secret)
+        - Republish every RegistrationRepublishInterval (default 30s) until accepted
         - Denial is non-terminal: logged, republishing continues, recovers when cleared
+        - Approval is polled, not pushed: it arrives on the next republish
     end note
     
     note right of SetupSchemaPhase
@@ -138,7 +168,7 @@ stateDiagram-v2
         - Subscribe: {installationTopic}/{serviceProviderIdentifier}/serviceProvider/setup/selection
         - Publish: {installationTopic}/{serviceProviderIdentifier}/serviceProvider/setup/schema
         - Blocks startup until selection received
-        - Republishes every 1 minute
+        - Retained, so republished only after a failed publish
         - Validates selection before proceeding
     end note
     
@@ -162,7 +192,28 @@ stateDiagram-v2
 - Register shutdown handler
 - Load connection data and secret from configuration
 
-**Exit**: Transitions to **RegisteringConnection** to begin registration flow.
+**Exit**: Transitions to **CheckingHeldCredentials**.
+
+---
+
+### CheckingHeldCredentials
+
+**Purpose**: Reconnect without registering again whenever possible.
+
+The broker authenticates operational clients from its own password file, so registration is needed to **provision** a credential, never to **reconnect** with one. Before registering, the
+SDK therefore uses any credentials it already holds:
+
+1. The in-memory credentials from a previous connection, which survive a reconnect.
+2. Failing that, the persisted credentials from `IOperationalCredentialsStore`, which survive a process restart — including a whole gateway reboot, where the service provider can
+   come back before the rest of the platform has finished starting.
+
+If neither yields credentials, the flow registers as before. A held credential carries **no guarantee of still being valid**: the broker's password file can be recreated by a
+platform update, and a denial or deletion removes the entry. That case is handled at **ConnectingOperational** rather than here.
+
+**Exit Conditions**:
+
+- **Credentials held** → **ConnectingOperational**
+- **None held** → **RegisteringConnection**
 
 ---
 
@@ -172,19 +223,33 @@ stateDiagram-v2
 
 **Sub-states**:
 
-1. **ConnectingToRegistrationBroker**: Connect to the registration broker using the configured host/port with the service provider identifier as the client ID.
+1. **ConnectingToRegistrationBroker**: Connect to the registration broker using the configured host/port, authenticating as the well-known `registration` bootstrap user, with a
+   **freshly generated random GUID as the MQTT client ID** — the *registration client-id*. A refused connection is not fatal (the broker may not have provisioned the `registration`
+   user yet) and is retried after 5 seconds.
 
-2. **SubscribedToRegistrationResponse**: Subscribe to both acceptance and denial topics that contain the secret:
-    - `system/serviceProvider/registration/accepted/{secret}`
-    - `system/serviceProvider/registration/denied/{secret}`
+2. **SubscribedToRegistrationResponse**: Subscribe to both response topics for this attempt's registration client-id:
+    - `system/serviceProvider/registration/accepted/{registrationClientId}`
+    - `system/serviceProvider/registration/denied/{registrationClientId}`
 
-3. **PublishingRegistration**: Publish the registration request to `system/serviceProvider/registration/request/{secret}` with QoS 1, retained, content-type `application/json`,
-   payload `ServiceProviderRegistrationRequestPayload` carrying the `serviceProviderIdentifier` (mesh reads the identifier from the payload, not the topic).
+   Subscribing happens **before** the request is published. Nothing is retained, so a response that arrives before the subscription is established is lost and costs a full
+   republish interval.
 
-4. **WaitingForAcceptance**: Wait for a registration response. The registration request is (re)published every 30 seconds until a response arrives — publishing on an interval
-   (rather than once) is deliberate: it is what makes a denial recoverable. A denial (`system/serviceProvider/registration/denied/{secret}`) is treated as **non-terminal** — it is
-   logged at warning level and the loop keeps republishing on the same 30-second interval, so the service provider registers on its own once the denial is cleared in the cloud, with
-   no restart. This loop continues until acceptance is received or the flow is cancelled.
+3. **PublishingRegistration**: Publish the registration request to `system/serviceProvider/registration/request/{registrationClientId}` with QoS 1, **not retained**, content-type
+   `application/json`, payload `ServiceProviderRegistrationRequestPayload` carrying the `serviceProviderIdentifier` **and the secret**. The identifier and secret are read from the
+   payload, the client-id from the topic.
+
+4. **WaitingForAcceptance**: Wait for a registration response. The registration request is (re)published every `RegistrationRepublishInterval` (default 30 seconds) until acceptance
+   arrives. Publishing on an interval rather than once is what makes the whole flow recoverable, because **nothing is retained in either direction and outcomes are never
+   pushed**:
+    - A **denial** (`system/serviceProvider/registration/denied/{registrationClientId}`) is **non-terminal** — logged at warning level with the reason carried in the denial, after which
+      the loop keeps republishing. A customer can deny and later approve; that approval reaches the service provider only on a further request.
+    - An **approval is polled, not pushed**. A customer's decision reaches this service provider on its next request, so the republish interval is also the approval latency.
+
+   This loop continues until acceptance is received or the flow is cancelled.
+
+**The registration client-id** is security-relevant: it is what routes the credentials back, and therefore what stops one service provider reading another's. It is generated fresh
+per registration attempt (reused across reconnects *within* one attempt), never persisted, and never derived from configuration or identity. The registration connection's MQTT
+client-id is exactly the value the topics are keyed on — the broker's `%c` ACL pattern expands to the *connecting* client's id, so a mismatch would break that enforcement.
 
 **Exit Conditions**:
 
@@ -195,7 +260,7 @@ stateDiagram-v2
   old registration flow is cancelled via `_registrationCts` and exits gracefully. A new `StartAsync()` call is already running, starting a fresh registration flow. This is an
   internal cleanup mechanism, not a state transition.
 
-**Error Handling**: Publication failures are logged and retried after 30 seconds.
+**Error Handling**: Connection and publication failures are logged and retried after 5 seconds.
 
 **Notes**:
 
@@ -244,8 +309,16 @@ stateDiagram-v2
 **Exit Conditions**:
 
 - **Success**: Connection established and initial health published → Transition to **SetupSchemaPhase**
-- **Failure**: Connection failed → Transition to **Disconnected** (auto-reconnect will retry)
+- **Credentials refused** (CONNACK `0x86` / `0x87`) → credentials discarded, transition to **RegisteringConnection**
+- **Transport failure** (anything else): credentials kept → Transition to **Disconnected** (auto-reconnect will retry them). Once they have been unreachable for 90 seconds they are
+  discarded too — held credentials carry the host and port they were issued with, so a broker that moved would otherwise be retried forever while the configured connection data is
+  ignored. The next attempt then finds nothing held and registers, which uses that configured data
 - **Connection Lost**: If the operational client disconnects after connecting but before completing this phase → Transition to **Disconnected**
+
+**Interpreting a refusal.** Freshly issued credentials are connected with against the broker to confirm they are live *before* being published, so credentials in an accepted
+message were valid when it was published. A later `0x86`/`0x87` therefore never means "not applied yet" — it means they have since been invalidated (revoked, or overwritten by a later
+registration). Retrying them cannot help, so the SDK discards them, clears any persisted copy, and registers again. Every other failure leaves the credentials unjudged, so they are
+kept and simply retried.
 
 ---
 
@@ -267,8 +340,8 @@ stateDiagram-v2
     - CorrelationData: unique identifier for this request
     - Schema user property: `ServiceProviderSetupSchemaPayload`
 
-5. **WaitingForSelection**: Wait for a selection message. If no selection is received within 1 minute, republish the setup schema. This loop continues until a valid selection is
-   received or the flow is cancelled.
+5. **WaitingForSelection**: Wait for a selection message, polling on a 1-second tick. The schema is retained, so it is republished only when a publish attempt failed — on the next
+   tick if the publish reported failure, after 5 seconds if it threw. This loop continues until a valid selection is received or the flow is cancelled.
 
 6. **ValidatingSelection**: When a selection message is received:
     - Verify the correlation data matches
@@ -406,11 +479,12 @@ stateDiagram-v2
 
 3. **ShutdownComplete**: If app is stopping, exit to final state.
 
-4. **RestartingFlow**: If not stopping, trigger a new `StartAsync()` call to restart the entire flow from registration.
+4. **RestartingFlow**: If not stopping, trigger a new `StartAsync()` call. The flow restarts at **CheckingHeldCredentials**, so an ordinary reconnect reuses the credentials
+   already held and does not involve registration at all — only a broker refusal sends it back through it.
 
 **Exit Conditions**:
 
-- **Auto-reconnect**: Transition back to **RegisteringConnection**
+- **Auto-reconnect**: Transition back to **CheckingHeldCredentials**
 - **App Shutdown**: Transition to final state
 
 **Notes**:
@@ -445,11 +519,15 @@ stateDiagram-v2
 | From State                          | To State                            | Trigger                          | Notes                                                |
 |-------------------------------------|-------------------------------------|----------------------------------|------------------------------------------------------|
 | [*]                                 | Initializing                        | `StartAsync()` called            | Application starts the service provider              |
-| Initializing                        | RegisteringConnection               | Configuration loaded             | Secret and connection data ready                     |
+| Initializing                        | CheckingHeldCredentials             | Configuration loaded             | Secret and connection data ready                     |
+| CheckingHeldCredentials             | ConnectingOperational               | Credentials held                 | In memory, or persisted from an earlier process      |
+| CheckingHeldCredentials             | RegisteringConnection               | No credentials held              | First start, or they were discarded as refused       |
+| ConnectingOperational               | RegisteringConnection               | Unreachable for 90s              | Discarded: the endpoint they name is not answering   |
 | RegisteringConnection               | DisconnectingFromRegistrationBroker | Registration accepted            | Credentials received                                 |
 | DisconnectingFromRegistrationBroker | ConnectingOperational               | Registration client disconnected | Ready for operational connection                     |
 | ConnectingOperational               | SetupSchemaPhase                    | Connection successful            | Operational connection established                   |
-| ConnectingOperational               | Disconnected                        | Connection failed                | Operational client connection attempt failed         |
+| ConnectingOperational               | RegisteringConnection               | Credentials refused              | `0x86`/`0x87` — discarded, including any stored copy  |
+| ConnectingOperational               | Disconnected                        | Transport failure                | Credentials unjudged, kept and retried               |
 | SetupSchemaPhase                    | PublishingDeclaration               | Declaration built                | Setup complete (or skipped)                          |
 | SetupSchemaPhase                    | Disconnected                        | Connection lost                  | Operational client disconnected during setup         |
 | PublishingDeclaration               | SettingUpHandlers                   | Declaration published            | Ready to register handlers                           |
@@ -458,7 +536,7 @@ stateDiagram-v2
 | SettingUpHandlers                   | Disconnected                        | Connection lost                  | Operational client disconnected during handler setup |
 | Operational                         | Disconnected                        | Connection lost                  | Network failure or broker restart                    |
 | Operational                         | ShuttingDown                        | App stopping token cancelled     | Application shutdown initiated                       |
-| Disconnected                        | RegisteringConnection               | Auto-reconnect                   | Retry registration flow (new `StartAsync()` call)    |
+| Disconnected                        | CheckingHeldCredentials             | Auto-reconnect                   | New `StartAsync()`; held credentials are tried first |
 | Disconnected                        | [*]                                 | App stopping                     | Application shutdown                                 |
 | ShuttingDown                        | [*]                                 | Disconnected cleanly             | Shutdown complete                                    |
 
@@ -503,7 +581,7 @@ gracefully, allowing the new flow to proceed without conflicts.
 ### Error Recovery
 
 - **Registration publish failure**: Log warning, retry after 30 seconds
-- **Setup schema publish failure**: Log warning, retry after 1 minute
+- **Setup schema publish failure**: Log warning, retry after 5 seconds
 - **Health publish failure**: Log warning, continue operation
 - **Declaration publish failure**: Log warning, continue operation
 - **Connection failure**: Rely on disconnection handler to restart flow
@@ -512,11 +590,14 @@ gracefully, allowing the new flow to proceed without conflicts.
 
 ### Registration Client
 
-- **Client ID**: `{serviceProviderIdentifier}`
+- **Client ID**: a fresh `Guid.NewGuid().ToString()` per registration attempt — the *registration client-id*, which all three registration topics are keyed on
 - **Protocol**: MQTT 5.0
-- **Broker**: From configuration (default: `nanomq:1883`)
+- **Broker**: From configuration
 - **Credentials**: The well-known `registration` bootstrap user (`RegistrationCredentials.WellKnown`)
 - **Lifetime**: Temporary (disconnected after registration accepted)
+
+> Do not confuse the two client-ids. The **registration** client-id is SP-generated, random, and per-attempt. The **operational** client-id is assigned during registration and arrives
+> *inside* the accepted payload.
 
 ### Operational Client
 
@@ -533,9 +614,11 @@ gracefully, allowing the new flow to proceed without conflicts.
 
 | Topic                                                   | Direction          | QoS | Retain | Content                                                                                |
 |---------------------------------------------------------|--------------------|-----|--------|----------------------------------------------------------------------------------------|
-| `system/serviceProvider/registration/request/{secret}`  | Provider → Runtime | 1   | Yes    | JSON `ServiceProviderRegistrationRequestPayload` (carries `serviceProviderIdentifier`) |
-| `system/serviceProvider/registration/accepted/{secret}` | Runtime → Provider | 0   | No     | JSON credentials                                                                       |
-| `system/serviceProvider/registration/denied/{secret}`   | Runtime → Provider | 0   | No     | JSON denial reason                                                                     |
+| `system/serviceProvider/registration/request/{registrationClientId}`  | Provider → Runtime | 1   | No     | JSON `ServiceProviderRegistrationRequestPayload` (`serviceProviderIdentifier` + `secret`) |
+| `system/serviceProvider/registration/accepted/{registrationClientId}` | Runtime → Provider | 0   | No     | JSON credentials                                                                          |
+| `system/serviceProvider/registration/denied/{registrationClientId}`   | Runtime → Provider | 0   | No     | JSON denial reason                                                                        |
+
+**Nothing on these three topics is retained, in either direction.** That is what makes the republish loop load-bearing rather than a safety net.
 
 ### Setup Schema Topics (Optional)
 
@@ -574,7 +657,8 @@ gracefully, allowing the new flow to proceed without conflicts.
 
 ### Idempotency
 
-- Registration requests are idempotent (can be retried safely)
+- Registration requests are safe to repeat, and are repeated by design. Note that each one issues a *new* operational password and the previous one stops
+  working — which is why the republish interval must clear the round trip
 - Declaration publications are retained and idempotent
 - Health state publications (`component/health/state`) are retained and idempotent
 - Health query responses (to `ResponseTopic`) are ephemeral (not retained) to avoid confusion about current state
@@ -582,13 +666,20 @@ gracefully, allowing the new flow to proceed without conflicts.
 
 ### State Persistence
 
-- The secret is persisted across restarts (generated once, reused)
-- Operational credentials are ephemeral (requested on each registration)
+- The secret is persisted across restarts (generated once, reused) — it is the service provider's proof of identity and must be high-entropy random, since it is stored as a fast
+  unsalted hash
+- Operational credentials are cached in memory and persisted across process restarts, to `data/operationalMqttCredentials.json` unless an `IOperationalCredentialsStore` puts them
+  elsewhere. A stored credential is never assumed valid: a refusal discards it
+- The registration client-id is never persisted: it is per-attempt ephemera
 - Handler registrations are configured at startup (not persisted)
 
 ### Retry Strategies
 
-- **Registration**: Retry every 30 seconds indefinitely
-- **Setup schema**: Retry every 1 minute indefinitely (blocks startup)
-- **Connection failure**: Immediate retry via disconnection handler
+- **Re-registration**: Never sooner than `RegistrationRepublishInterval` after the previous registration completed, whichever path asks for it — a refused credential would
+  otherwise be reissued and destroyed at the reconnect cadence
+- **Registration**: Republish every `RegistrationRepublishInterval` indefinitely (default 30 seconds; configurable, and used exactly as configured). Too short and requests outrun
+  the round trip, because each one issues a fresh password that invalidates the previous one; too long and customer approval is slow, since the interval is also the approval
+  latency
+- **Setup schema**: Published once (retained), then polled for the selection on a 1-second tick; republished only after a failed publish. Blocks startup indefinitely
+- **Connection failure**: Retried by the disconnection handler after `ReconnectDelay` (default 5 seconds)
 - **Message publish failure**: Log warning, no automatic retry (except for registration and setup schema)

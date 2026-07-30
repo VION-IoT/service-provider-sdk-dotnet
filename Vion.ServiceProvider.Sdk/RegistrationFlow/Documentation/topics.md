@@ -16,9 +16,9 @@ The SDK implements MQTT communication through:
 
 | Topic Pattern                                                                    | Phase        | File                                           | Method                 | Description                                       |
 |----------------------------------------------------------------------------------|--------------|------------------------------------------------|------------------------|---------------------------------------------------|
-| `{Topics.ServiceProviderRegistrationAccepted}/{secret}`                          | Registration | `ServiceProviderClient.cs`                     | `RegisterAsync`        | Accepts registration with operational credentials |
-| `{Topics.ServiceProviderRegistrationDenied}/{secret}`                            | Registration | `ServiceProviderClient.cs`                     | `RegisterAsync`        | Denies registration request                       |
-| `{installationTopic}{serviceProviderIdentifier}/serviceProvider/setup/selection` | Setup        | `ServiceProviderClient.cs`                     | `SendSetupSchemaAsync` | Receives setup selection from mesh                |
+| `{Topics.ServiceProviderRegistrationAccepted}/{registrationClientId}`              | Registration | `ServiceProviderClient.cs`                     | `RegisterAsync`        | Accepts registration with operational credentials |
+| `{Topics.ServiceProviderRegistrationDenied}/{registrationClientId}`                | Registration | `ServiceProviderClient.cs`                     | `RegisterAsync`        | Denies registration request                       |
+| `{installationTopic}{serviceProviderIdentifier}/serviceProvider/setup/selection` | Setup        | `ServiceProviderClient.cs`                     | `SendSetupSchemaAsync` | Receives the setup selection                      |
 | `{installationTopic}{serviceProviderIdentifier}/{service}/{contract}/#`          | Operational  | `ServiceProviderClientConfigurationBuilder.cs` | `WithContractHandler`  | Contract-specific message handlers                |
 | Custom topics registered via `WithHandler`                                       | Operational  | `ServiceProviderClientConfigurationBuilder.cs` | `WithHandler`          | User-defined message handlers                     |
 
@@ -28,7 +28,7 @@ The SDK implements MQTT communication through:
 
 | Topic Pattern                                                                        | Phase        | File                       | Method                                         | Description                                     |
 |--------------------------------------------------------------------------------------|--------------|----------------------------|------------------------------------------------|-------------------------------------------------|
-| `{Topics.ServiceProviderRegistrationRequest}/{secret}`                               | Registration | `ServiceProviderClient.cs` | `RegisterAsync`                                | Requests registration with mesh broker          |
+| `{Topics.ServiceProviderRegistrationRequest}/{registrationClientId}`                   | Registration | `ServiceProviderClient.cs` | `RegisterAsync`                                | Requests registration with the broker           |
 | `{installationTopic}{serviceProviderIdentifier}/serviceProvider/setup/schema`        | Setup        | `ServiceProviderClient.cs` | `SendSetupSchemaAsync`                         | Publishes setup schema for configuration        |
 | `{installationTopic}/{serviceProviderIdentifier}{Topics.ServiceProviderDeclaration}` | Operational  | `ServiceProviderClient.cs` | `SendDeclarationAsync`                         | Declares service provider capabilities          |
 | `{installationTopic}{serviceProviderIdentifier}{Topics.ComponentHealthState}`        | Operational  | `ServiceProviderClient.cs` | `ConnectOperationalClientAsync` + Last Will    | Health status publication and last will message |
@@ -43,8 +43,9 @@ The SDK provides helper methods in `ServiceProviderTopics` class for building to
 
 | Method                                                                                                   | Returns                                                                               | Usage                                |
 |----------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------|--------------------------------------|
-| `GetRegistrationAcceptedTopic(secret)`                                                                   | `{Topics.ServiceProviderRegistrationAccepted}/{secret}`                               | Registration acceptance subscription |
-| `GetRegistrationDeniedTopic(secret)`                                                                     | `{Topics.ServiceProviderRegistrationDenied}/{secret}`                                 | Registration denial subscription     |
+| `GetRegistrationRequestTopic(registrationClientId)`                                                      | `{Topics.ServiceProviderRegistrationRequest}/{registrationClientId}`                  | Registration request publication     |
+| `GetRegistrationAcceptedTopic(registrationClientId)`                                                     | `{Topics.ServiceProviderRegistrationAccepted}/{registrationClientId}`                 | Registration acceptance subscription |
+| `GetRegistrationDeniedTopic(registrationClientId)`                                                       | `{Topics.ServiceProviderRegistrationDenied}/{registrationClientId}`                   | Registration denial subscription     |
 | `GetSetupSchemaTopic(installationTopic, serviceProviderIdentifier)`                                      | `{installationTopic}{serviceProviderIdentifier}/serviceProvider/setup/schema`         | Setup schema publication             |
 | `GetSelectionTopic(installationTopic, serviceProviderIdentifier)`                                        | `{installationTopic}{serviceProviderIdentifier}/serviceProvider/setup/selection`      | Setup selection subscription         |
 | `GetContractTopicFilter(installationTopic, serviceProviderIdentifier, serviceAndContractIdentifierPart)` | `{installationTopic}{serviceProviderIdentifier}/{serviceAndContractIdentifierPart}/#` | Contract handler subscriptions       |
@@ -70,7 +71,7 @@ The following constants are defined in the external `Vion.Contracts.Mqtt.Topics`
 
 | Variable                      | Source                  | Description                                                                  |
 |-------------------------------|-------------------------|------------------------------------------------------------------------------|
-| `{secret}`                    | Configuration parameter | Authentication secret provided during client configuration                   |
+| `{registrationClientId}`      | Generated per attempt   | Random GUID, also the registration connection's MQTT client-id (see below)   |
 | `{installationTopic}`         | Registration response   | Received from `ServiceProviderRegistrationAcceptedPayload.InstallationTopic` |
 | `{serviceProviderIdentifier}` | Configuration parameter | Provided in `MqttConnectionData.ServiceProviderIdentifier`                   |
 | `{service}/{contract}`        | Handler configuration   | Defined when registering contract handlers via `WithContractHandler`         |
@@ -81,10 +82,16 @@ The following constants are defined in the external `Vion.Contracts.Mqtt.Topics`
 
 ### Registration Phase
 
-Topics used during initial service provider registration with the mesh:
+Topics used during initial service provider registration:
 
-- Subscribe to acceptance/denial topics with secret
-- Publish registration request
+All three registration topics are keyed on the **registration client-id** — a random GUID the SDK generates per registration
+attempt, which is also the MQTT client-id of the registration connection. The secret travels in the request *payload*, not the
+topic, because topics are logged far more readily than payloads. Nothing here is retained in either direction.
+
+- Subscribe to the acceptance/denial topics for this attempt's client-id — before publishing, since a response that arrives
+  first is gone for good
+- Publish the registration request (`ServiceProviderIdentifier` + `Secret` in the payload), repeated on
+  `RegistrationRepublishInterval` until accepted
 - Receive operational MQTT credentials
 
 ### Setup Phase (Optional)
@@ -93,7 +100,7 @@ Topics used for service provider configuration schema and selection:
 
 - Publish setup schema
 - Subscribe to setup selection
-- Wait for configuration from mesh
+- Wait for the configuration selection
 
 ### Operational Phase
 

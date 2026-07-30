@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
@@ -38,7 +39,13 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
     {
         private const string ConnectionName = "Local";
 
-        private const int RegistrationRepublishIntervalSeconds = 30;
+        // Held credentials carry the host and port they were issued with, so a broker that moved would otherwise be
+        // retried forever. Once they have been unreachable for this long the flow registers instead, which goes to the
+        // configured connection data. Wall-clock rather than an attempt count, so it holds however the reconnect delay
+        // is configured and however long each attempt takes to fail.
+        private static readonly TimeSpan HeldCredentialRetryWindow = TimeSpan.FromSeconds(90);
+
+        private static readonly TimeSpan RegistrationConnectRetryDelay = TimeSpan.FromSeconds(5);
 
         private static readonly ObjectPool<MqttApplicationMessage> MessagePool = new(static () => new MqttApplicationMessage
                                                                                                   {
@@ -74,6 +81,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         private readonly IMqttClient _operationalClient;
 
+        private readonly IOperationalCredentialsStore _operationalCredentialsStore;
+
         private readonly SemaphoreSlim _startSemaphore = new(1, 1);
 
         private CancellationToken? _appStoppingToken;
@@ -85,6 +94,10 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         private volatile HandlerConfiguration[] _handlers = [];
 
         private volatile Func<HealthCheckResult>? _healthStateProviderFunc;
+
+        private DateTime? _heldCredentialsUnreachableSince;
+
+        private DateTime? _lastRegistrationCompletedAt;
 
         private volatile OperationalData? _operationalData;
 
@@ -124,6 +137,10 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             _mqttClientFactory = mqttClientFactory;
             _logger = logger;
             _configuration = configuration;
+            _operationalCredentialsStore = configuration.OperationalCredentialsStore ??
+                                           new OperationalCredentialsStore(new DiskAccessProvider(),
+                                                                           Path.Combine(AppContext.BaseDirectory, "data", "operationalMqttCredentials.json"),
+                                                                           logger);
             _dispatcher = dispatcher;
             _operationalClient = _mqttClientFactory.CreateMqttClient();
             _operationalClient.ApplicationMessageReceivedAsync += OnApplicationMessageReceivedAsync;
@@ -187,15 +204,14 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 try
                 {
                     // execute flow
-                    _operationalData = await RegisterAsync(_connectionData, _secret, _registrationCredentials.Value, stoppingToken);
-                    if (!await ConnectOperationalClientAsync(stoppingToken))
+                    if (!await EstablishOperationalConnectionAsync(stoppingToken))
                     {
                         //  MQTTnet has already fired DisconnectedAsync, so OnDisconnectedAsync will run the next attempt.
                         return;
                     }
 
                     var serviceProviderDeclarationPayload = await SendOptionalSetupSchemaAsync(stoppingToken);
-                    await SendDeclarationAsync(_operationalData, serviceProviderDeclarationPayload, stoppingToken);
+                    await SendDeclarationAsync(_operationalData!, serviceProviderDeclarationPayload, stoppingToken);
                     await SetupHandlersAsync(stoppingToken);
                     await PublishInitialStatesAsync(stoppingToken);
                     if (_configuration.OnOperationalReadyCallback is { } onOperationalReady)
@@ -710,7 +726,94 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             return _configuration.DeclarationPayload;
         }
 
-        private async Task<bool> ConnectOperationalClientAsync(CancellationToken cancellationToken)
+        // Try the credentials already held — in memory from an earlier connection, or persisted from an earlier process —
+        // before registering for new ones. The broker authenticates from its own password file, so registration is needed
+        // to obtain a credential, never to reconnect with one.
+        private async Task<bool> EstablishOperationalConnectionAsync(CancellationToken stoppingToken)
+        {
+            var heldData = _operationalData ?? _operationalCredentialsStore.Read();
+            if (heldData != null)
+            {
+                _operationalData = heldData;
+                var heldOutcome = await ConnectOperationalClientAsync(stoppingToken);
+
+                // Every failure returns, so the disconnect handler drives the next attempt and only one flow runs at a
+                // time. Discarding is what makes that next attempt register: it finds nothing held.
+                switch (heldOutcome)
+                {
+                    case OperationalConnectOutcome.Connected:
+                        _heldCredentialsUnreachableSince = null;
+                        return true;
+                    case OperationalConnectOutcome.TransportFailed:
+                        _heldCredentialsUnreachableSince ??= DateTime.UtcNow;
+                        if (DateTime.UtcNow - _heldCredentialsUnreachableSince.Value < HeldCredentialRetryWindow)
+                        {
+                            return false;
+                        }
+
+                        LogHeldCredentialsUnreachable(heldData.ConnectionData.Host, heldData.ConnectionData.Port, HeldCredentialRetryWindow);
+                        DiscardOperationalCredentials();
+                        return false;
+                    case OperationalConnectOutcome.AuthRejected:
+                    default:
+                        LogOperationalCredentialsRejected();
+                        DiscardOperationalCredentials();
+                        return false;
+                }
+            }
+
+            // Every request mints a new operational password and invalidates the previous one, so registering must never
+            // outrun the republish interval — including on the paths that reach here through a failed connect, which are
+            // paced by the much shorter reconnect delay. Without this, credentials the broker refuses would be reissued
+            // and destroyed faster than a round trip can complete, indefinitely.
+            await WaitForRegistrationSpacingAsync(stoppingToken);
+            var operationalData = await RegisterAsync(_connectionData!, _secret!, _registrationCredentials!.Value, stoppingToken);
+            _lastRegistrationCompletedAt = DateTime.UtcNow;
+            _operationalData = operationalData;
+            _operationalCredentialsStore.Write(operationalData);
+
+            var outcome = await ConnectOperationalClientAsync(stoppingToken);
+            if (outcome == OperationalConnectOutcome.AuthRejected)
+            {
+                // Freshly issued credentials the broker still refuses — do not carry them into the next attempt.
+                LogOperationalCredentialsRejected();
+                DiscardOperationalCredentials();
+            }
+
+            return outcome == OperationalConnectOutcome.Connected;
+        }
+
+        private async Task WaitForRegistrationSpacingAsync(CancellationToken stoppingToken)
+        {
+            if (_lastRegistrationCompletedAt is not { } lastRegistration)
+            {
+                return;
+            }
+
+            var sinceLastRegistration = DateTime.UtcNow - lastRegistration;
+            if (sinceLastRegistration >= _configuration.RegistrationRepublishInterval)
+            {
+                return;
+            }
+
+            var wait = _configuration.RegistrationRepublishInterval - sinceLastRegistration;
+            LogWaitingBeforeRegisteringAgain(wait);
+            await Task.Delay(wait, stoppingToken);
+        }
+
+        private void DiscardOperationalCredentials()
+        {
+            _heldCredentialsUnreachableSince = null;
+            _operationalData = null;
+
+            // Cleared together: the health topic is derived from the credentials, and the publish helpers read the
+            // identifier back out of them. Leaving it set would let a shutdown publish a health payload with a null
+            // identifier on a connection we no longer have.
+            _topicComponentHealthState = null;
+            _operationalCredentialsStore.Clear();
+        }
+
+        private async Task<OperationalConnectOutcome> ConnectOperationalClientAsync(CancellationToken cancellationToken)
         {
             var serviceProviderIdentifier = _operationalData!.ConnectionData.ServiceProviderIdentifier;
 
@@ -744,17 +847,20 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 if (result.ResultCode == MqttClientConnectResultCode.Success)
                 {
                     LogConnectedOperationalClient();
-                    return true;
+                    return OperationalConnectOutcome.Connected;
                 }
 
                 LogOperationalClientConnectFailed(result.ResultCode);
+
+                return result.ResultCode is MqttClientConnectResultCode.BadUserNameOrPassword or MqttClientConnectResultCode.NotAuthorized ?
+                           OperationalConnectOutcome.AuthRejected : OperationalConnectOutcome.TransportFailed;
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 LogOperationalClientConnectException(exception);
             }
 
-            return false;
+            return OperationalConnectOutcome.TransportFailed;
         }
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "Received message (CorrelationId={CorrelationId}, Topic={Topic})")]
@@ -900,20 +1006,39 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         private partial void LogUnexpectedRegistrationMessage(string topic, string? reason, Guid correlationId);
 
         [LoggerMessage(Level = LogLevel.Warning,
-                       Message =
-                           "Registration denied — the SDK will keep re-publishing the registration request every {IntervalSeconds}s until it is accepted (CorrelationId={CorrelationId})")]
-        private partial void LogRegistrationDenied(int intervalSeconds, Guid correlationId);
+                       Message = "Registration denied ({Reason}) — the SDK will keep re-publishing the registration request every {Interval} until it is accepted " +
+                                 "(CorrelationId={CorrelationId})")]
+        private partial void LogRegistrationDenied(string? reason, TimeSpan interval, Guid correlationId);
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to deserialize registration denied payload — the denial still stands (CorrelationId={CorrelationId})")]
+        private partial void LogRegistrationDeniedDeserializationError(Exception exception, Guid correlationId);
+
+        [LoggerMessage(Level = LogLevel.Warning,
+                       Message = "Registration client disconnected — will republish the registration request on reconnect " +
+                                 "(ReasonString={ReasonString}, Reason={Reason}, CorrelationId={CorrelationId})")]
+        private partial void LogRegistrationClientDisconnected(string? reasonString, MqttClientDisconnectReason reason, Guid correlationId);
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to connect registration client — will retry shortly (ResultCode={ResultCode}, Reason={Reason})")]
+        private partial void LogRegistrationClientConnectFailed(MqttClientConnectResultCode resultCode, string? reason);
 
         [LoggerMessage(Level = LogLevel.Warning,
                        Message =
-                           "Registration client disconnected — will republish retained message on reconnect (ReasonString={ReasonString}, Reason={Reason}, CorrelationId={CorrelationId})")]
-        private partial void LogRegistrationClientDisconnected(string? reasonString, MqttClientDisconnectReason reason, Guid correlationId);
+                           "Broker refused the operational credentials — they were valid when issued, so they have since been invalidated; discarding them and registering again")]
+        private partial void LogOperationalCredentialsRejected();
+
+        [LoggerMessage(Level = LogLevel.Warning,
+                       Message = "Could not reach the broker the held credentials name for {Window} (Host={Host}, Port={Port}) " +
+                                 "— discarding them and registering against the configured broker instead")]
+        private partial void LogHeldCredentialsUnreachable(string host, int port, TimeSpan window);
+
+        [LoggerMessage(Level = LogLevel.Information, Message = "Waiting {Wait} before registering again — a request may not outrun the republish interval")]
+        private partial void LogWaitingBeforeRegisteringAgain(TimeSpan wait);
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Service-provider startup is blocked until registration is accepted (CorrelationId={CorrelationId}, Topic={Topic})")]
         private partial void LogWaitingForRegistration(Guid correlationId, string topic);
 
         [LoggerMessage(Level = LogLevel.Information,
-                       Message = "Published retained registration request — waiting for response (PublishCount={PublishCount}, CorrelationId={CorrelationId})")]
+                       Message = "Published registration request — waiting for response (PublishCount={PublishCount}, CorrelationId={CorrelationId})")]
         private partial void LogRegistrationRequestPublished(int publishCount, Guid correlationId);
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Registration canceled — loop aborted (PublishCount={PublishCount}, CorrelationId={CorrelationId})")]
@@ -921,9 +1046,6 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to publish or connect for registration — will retry shortly (CorrelationId={CorrelationId})")]
         private partial void LogRegistrationPublishRetrying(Exception exception, Guid correlationId);
-
-        [LoggerMessage(Level = LogLevel.Warning, Message = "Registration canceled during error retry (PublishCount={PublishCount}, CorrelationId={CorrelationId})")]
-        private partial void LogRegistrationCanceledDuringRetry(int publishCount, Guid correlationId);
 
         [LoggerMessage(Level = LogLevel.Information,
                        Message = "Registration accepted — received operational credentials (PublishCount={PublishCount}, CorrelationId={CorrelationId})")]
@@ -962,6 +1084,21 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "Failed to dispose CancellationTokenSource (Name={Name})")]
         private partial void LogCancellationTokenSourceDisposeFailed(Exception exception, string name);
+
+        /// <summary>
+        ///     What the broker made of an operational connection attempt. The distinction that matters is whether the
+        ///     credentials were <em>judged</em>: only a refusal proves them dead.
+        /// </summary>
+        private enum OperationalConnectOutcome
+        {
+            Connected,
+
+            /// <summary>The broker refused the credentials (<c>0x86</c>/<c>0x87</c>) — they must be replaced.</summary>
+            AuthRejected,
+
+            /// <summary>The attempt never reached a verdict on the credentials — they may still be good.</summary>
+            TransportFailed,
+        }
 
         #region callbacks
 
@@ -1178,18 +1315,6 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 // Initial subscription
                 await _operationalClient.SubscribeAsync(subscribeOptions, loopCancellationToken);
 
-                var msg = new MqttApplicationMessageBuilder().WithTopic(setupSchemaTopic)
-                                                             .WithPayload(payload)
-                                                             .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
-                                                             .WithContentType(MessageMimeTypes.Json)
-                                                             .WithCorrelationData(correlationId.ToByteArray())
-                                                             .WithResponseTopic(setupSelectionTopic)
-                                                             .WithUserProperty(PublishedAt.Name,
-                                                                               Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format, CultureInfo.InvariantCulture)))
-                                                             .WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(nameof(ServiceProviderSetupSchemaPayload)))
-                                                             .WithRetainFlag()
-                                                             .Build();
-
                 while (!tcs.Task.IsCompleted)
                 {
                     loopCancellationToken.ThrowIfCancellationRequested();
@@ -1199,6 +1324,20 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                         if (needsPublish)
                         {
                             publishCount++;
+
+                            // Built per attempt so PublishedAt stays current and the traceparent PublishRawAsync adds does not accumulate.
+                            var msg = new MqttApplicationMessageBuilder().WithTopic(setupSchemaTopic)
+                                                                         .WithPayload(payload)
+                                                                         .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                                                                         .WithContentType(MessageMimeTypes.Json)
+                                                                         .WithCorrelationData(correlationId.ToByteArray())
+                                                                         .WithResponseTopic(setupSelectionTopic)
+                                                                         .WithUserProperty(PublishedAt.Name,
+                                                                                           Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format,
+                                                                                                                      CultureInfo.InvariantCulture)))
+                                                                         .WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(nameof(ServiceProviderSetupSchemaPayload)))
+                                                                         .WithRetainFlag()
+                                                                         .Build();
                             var publishSucceeded = await PublishRawAsync(_operationalClient, msg, correlationId, loopCancellationToken);
                             if (publishSucceeded)
                             {
@@ -1260,10 +1399,11 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             using var client = _mqttClientFactory.CreateMqttClient();
             try
             {
-                var registrationAcceptedTopic = ServiceProviderTopics.GetRegistrationAcceptedTopic(secret);
-                var registrationDeniedTopic = ServiceProviderTopics.GetRegistrationDeniedTopic(secret);
+                var registrationClientId = Guid.NewGuid().ToString();
+                var registrationAcceptedTopic = ServiceProviderTopics.GetRegistrationAcceptedTopic(registrationClientId);
+                var registrationDeniedTopic = ServiceProviderTopics.GetRegistrationDeniedTopic(registrationClientId);
 
-                var registrationOptions = new MqttClientOptionsBuilder().WithClientId(connectionData.ServiceProviderIdentifier)
+                var registrationOptions = new MqttClientOptionsBuilder().WithClientId(registrationClientId)
                                                                         .WithProtocolVersion(MqttProtocolVersion.V500)
                                                                         .WithTcpServer(connectionData.Host, connectionData.Port)
                                                                         .WithCredentials(registrationCredentials.Username, registrationCredentials.Password)
@@ -1329,7 +1469,20 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
                                                               if (eventArgs.ApplicationMessage.Topic == registrationDeniedTopic)
                                                               {
-                                                                  LogRegistrationDenied(RegistrationRepublishIntervalSeconds, correlationId);
+                                                                  string? reason = null;
+                                                                  try
+                                                                  {
+                                                                      reason = JsonSerializer.Deserialize(eventArgs.ApplicationMessage.Payload.ToArray(),
+                                                                                                          ServiceProviderJsonContext.Default
+                                                                                                              .ServiceProviderRegistrationDeniedPayload)
+                                                                                             .Reason;
+                                                                  }
+                                                                  catch (Exception ex)
+                                                                  {
+                                                                      LogRegistrationDeniedDeserializationError(ex, correlationId);
+                                                                  }
+
+                                                                  LogRegistrationDenied(reason, _configuration.RegistrationRepublishInterval, correlationId);
                                                                   return Task.CompletedTask;
                                                               }
 
@@ -1337,63 +1490,58 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
                                                               return Task.CompletedTask;
                                                           };
-                var needsPublish = true;
                 var publishCount = 0;
-                var lastPublishAttempt = DateTime.UtcNow;
 
                 client.DisconnectedAsync += e =>
                                             {
                                                 LogRegistrationClientDisconnected(e.ReasonString, e.Reason, correlationId);
-                                                needsPublish = true; // Trigger republish on reconnect since broker might have lost retained message
                                                 return Task.CompletedTask;
                                             };
 
                 // publish registration
-                var topic = $"{Topics.ServiceProviderRegistrationRequest}/{secret}";
-                var payload = JsonSerializer.SerializeToUtf8Bytes(new ServiceProviderRegistrationRequestPayload(connectionData.ServiceProviderIdentifier),
+                var topic = ServiceProviderTopics.GetRegistrationRequestTopic(registrationClientId);
+                var payload = JsonSerializer.SerializeToUtf8Bytes(new ServiceProviderRegistrationRequestPayload(connectionData.ServiceProviderIdentifier, secret),
                                                                   ServiceProviderJsonContext.Default.ServiceProviderRegistrationRequestPayload);
 
                 LogWaitingForRegistration(correlationId, registrationAcceptedTopic);
-
-                var msg = new MqttApplicationMessageBuilder().WithTopic(topic)
-                                                             .WithPayload(payload)
-                                                             .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
-                                                             .WithContentType(MessageMimeTypes.Json)
-                                                             .WithCorrelationData(correlationId.ToByteArray())
-                                                             .WithUserProperty(PublishedAt.Name,
-                                                                               Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format, CultureInfo.InvariantCulture)))
-                                                             .WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(nameof(ServiceProviderRegistrationRequestPayload)))
-                                                             .WithRetainFlag()
-                                                             .Build();
 
                 while (!tcs.Task.IsCompleted)
                 {
                     registrationToken.ThrowIfCancellationRequested();
 
+                    var delay = _configuration.RegistrationRepublishInterval;
                     try
                     {
-                        if (!client.IsConnected)
+                        if (!client.IsConnected &&
+                            !await ConnectRegistrationClientAsync(connectionData, registrationOptions, mqttClientSubscribeOptions, client, registrationToken))
                         {
-                            await ConnectRegistrationClientAsync(connectionData, registrationOptions, mqttClientSubscribeOptions, client, registrationToken);
-                            needsPublish = true; // Republish after reconnection
+                            delay = RegistrationConnectRetryDelay;
                         }
-
-                        // Re-publish on a fixed interval, not just once, so a denied service provider recovers on its own: once
-                        // the deny is cleared in the cloud, the next republish is accepted and startup proceeds — no restart needed.
-                        if (needsPublish || DateTime.UtcNow - lastPublishAttempt >= TimeSpan.FromSeconds(RegistrationRepublishIntervalSeconds))
+                        else
                         {
                             publishCount++;
-                            lastPublishAttempt = DateTime.UtcNow;
-                            var publishSucceeded = await PublishRawAsync(client, msg, correlationId, registrationToken);
-                            if (publishSucceeded)
+
+                            // Built per attempt so PublishedAt stays current and the traceparent PublishRawAsync adds does not accumulate.
+                            var msg = new MqttApplicationMessageBuilder().WithTopic(topic)
+                                                                         .WithPayload(payload)
+                                                                         .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                                                                         .WithContentType(MessageMimeTypes.Json)
+                                                                         .WithCorrelationData(correlationId.ToByteArray())
+                                                                         .WithUserProperty(PublishedAt.Name,
+                                                                                           Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format,
+                                                                                                                      CultureInfo.InvariantCulture)))
+                                                                         .WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(nameof(ServiceProviderRegistrationRequestPayload)))
+                                                                         .Build();
+
+                            if (await PublishRawAsync(client, msg, correlationId, registrationToken))
                             {
-                                needsPublish = false;
                                 LogRegistrationRequestPublished(publishCount, correlationId);
                             }
+                            else
+                            {
+                                delay = RegistrationConnectRetryDelay;
+                            }
                         }
-
-                        // Wait for either registration response or a short polling interval
-                        await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(1), registrationToken));
                     }
                     catch (OperationCanceledException)
                     {
@@ -1403,18 +1551,10 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                     catch (Exception e)
                     {
                         LogRegistrationPublishRetrying(e, correlationId);
-                        needsPublish = true; // Retry publish on next iteration
-                        try
-                        {
-                            // Short delay before retry on error
-                            await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5), registrationToken));
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            LogRegistrationCanceledDuringRetry(publishCount, correlationId);
-                            throw;
-                        }
+                        delay = RegistrationConnectRetryDelay;
                     }
+
+                    await Task.WhenAny(tcs.Task, Task.Delay(delay, registrationToken));
                 }
 
                 var acceptedPayload = await tcs.Task;
@@ -1444,14 +1584,20 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             }
         }
 
-        private async Task ConnectRegistrationClientAsync(MqttConnectionData connectionData,
-                                                          MqttClientOptions registrationOptions,
-                                                          MqttClientSubscribeOptions mqttClientSubscribeOptions,
-                                                          IMqttClient client,
-                                                          CancellationToken ct)
+        private async Task<bool> ConnectRegistrationClientAsync(MqttConnectionData connectionData,
+                                                                MqttClientOptions registrationOptions,
+                                                                MqttClientSubscribeOptions mqttClientSubscribeOptions,
+                                                                IMqttClient client,
+                                                                CancellationToken ct)
         {
             LogConnectingRegistrationClient(connectionData.Host, connectionData.Port);
             var result = await client.ConnectAsync(registrationOptions, ct);
+            if (result.ResultCode != MqttClientConnectResultCode.Success)
+            {
+                LogRegistrationClientConnectFailed(result.ResultCode, result.ReasonString);
+                return false;
+            }
+
             LogConnectedRegistrationClient(result.ReasonString, result.ResultCode);
 
             var subscribeResult = await client.SubscribeAsync(mqttClientSubscribeOptions, ct);
@@ -1461,6 +1607,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 LogRegistrationClientSubscribed(subscribeResult.ReasonString, string.Join(",\n    ", subscribeResult.Items.Select(i => $"{i.TopicFilter.Topic}: {i.ResultCode}")));
 #pragma warning restore CA1873
             }
+
+            return true;
         }
 
         private async Task SendDeclarationAsync(OperationalData operationalData, ServiceProviderDeclarationPayload declaration, CancellationToken cancellationToken)
@@ -1470,22 +1618,28 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             var topic = ServiceProviderTopics.GetServiceProviderDeclarationTopic(installationTopic, operationalData.ConnectionData.ServiceProviderIdentifier);
             var correlationId = Guid.NewGuid();
 
-            var msg = new MqttApplicationMessageBuilder().WithTopic(topic)
-                                                         .WithPayload(payload)
-                                                         .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
-                                                         .WithContentType(MessageMimeTypes.Json)
-                                                         .WithCorrelationData(correlationId.ToByteArray())
-                                                         .WithUserProperty(PublishedAt.Name,
-                                                                           Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format, CultureInfo.InvariantCulture)))
-                                                         .WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(nameof(ServiceProviderDeclarationPayload)))
-                                                         .WithRetainFlag()
-                                                         .Build();
-
             // Retry until the broker acks (QoS 1). Bail on disconnect: OnDisconnectedAsync restarts the whole
             // flow and re-sends the declaration, whereas looping here would spin on a dead client and block the
             // reconnect (this runs under _startSemaphore on the app token, which a disconnect doesn't cancel).
-            while (!await PublishRawAsync(_operationalClient, msg, correlationId, cancellationToken))
+            while (true)
             {
+                // Built per attempt so PublishedAt stays current and the traceparent PublishRawAsync adds does not accumulate.
+                var msg = new MqttApplicationMessageBuilder().WithTopic(topic)
+                                                             .WithPayload(payload)
+                                                             .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                                                             .WithContentType(MessageMimeTypes.Json)
+                                                             .WithCorrelationData(correlationId.ToByteArray())
+                                                             .WithUserProperty(PublishedAt.Name,
+                                                                               Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString(PublishedAt.Format, CultureInfo.InvariantCulture)))
+                                                             .WithUserProperty(Schema.Name, Encoding.UTF8.GetBytes(nameof(ServiceProviderDeclarationPayload)))
+                                                             .WithRetainFlag()
+                                                             .Build();
+
+                if (await PublishRawAsync(_operationalClient, msg, correlationId, cancellationToken))
+                {
+                    break;
+                }
+
                 if (!_operationalClient.IsConnected)
                 {
                     return;

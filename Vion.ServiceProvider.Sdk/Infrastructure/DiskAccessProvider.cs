@@ -30,5 +30,17 @@ namespace Vion.ServiceProvider.Sdk.Infrastructure
         {
             File.WriteAllText(path, contents);
         }
+
+        /// <inheritdoc />
+        public void MoveFile(string sourcePath, string destinationPath, bool overwrite)
+        {
+            File.Move(sourcePath, destinationPath, overwrite);
+        }
+
+        /// <inheritdoc />
+        public void DeleteFile(string path)
+        {
+            File.Delete(path);
+        }
     }
 }

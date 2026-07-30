@@ -14,14 +14,19 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             return $"{installationTopic}/{serviceProviderIdentifier}/serviceProvider/setup/schema";
         }
 
-        public static string GetRegistrationAcceptedTopic(string secret)
+        public static string GetRegistrationRequestTopic(string registrationClientId)
         {
-            return $"{Topics.ServiceProviderRegistrationAccepted}/{secret}";
+            return $"{Topics.ServiceProviderRegistrationRequest}/{registrationClientId}";
         }
 
-        public static string GetRegistrationDeniedTopic(string secret)
+        public static string GetRegistrationAcceptedTopic(string registrationClientId)
         {
-            return $"{Topics.ServiceProviderRegistrationDenied}/{secret}";
+            return $"{Topics.ServiceProviderRegistrationAccepted}/{registrationClientId}";
+        }
+
+        public static string GetRegistrationDeniedTopic(string registrationClientId)
+        {
+            return $"{Topics.ServiceProviderRegistrationDenied}/{registrationClientId}";
         }
 
         public static string GetContractTopicFilter(string installationTopic, string serviceProviderIdentifier, string serviceAndContractIdentifierPart)

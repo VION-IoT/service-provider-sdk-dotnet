@@ -127,9 +127,22 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         public required MqttConnectionData ConnectionData { get; init; }
 
         /// <summary>
-        ///     Gets or initializes the authentication secret.
+        ///     Gets or initializes the service provider's pairing secret — its proof of identity.
         /// </summary>
         public required string Secret { get; init; }
+
+        /// <summary>
+        ///     Gets or sets the interval at which the registration request is re-published until the registration is accepted.
+        /// </summary>
+        public TimeSpan RegistrationRepublishInterval { get; set; } = TimeSpan.FromSeconds(30);
+
+        /// <summary>
+        ///     Gets or sets the store that persists operational credentials across process restarts, so a restart
+        ///     reconnects instead of registering again. When <c>null</c> (the default), they are persisted to
+        ///     <c>data/operationalMqttCredentials.json</c> under the application base directory; supply a store to put
+        ///     them somewhere else.
+        /// </summary>
+        public IOperationalCredentialsStore? OperationalCredentialsStore { get; set; }
 
         /// <summary>
         ///     Gets or initializes the well-known, bootstrap credentials the registration client authenticates with
@@ -456,6 +469,33 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         public ServiceProviderClientBuilder WithReconnectDelay(TimeSpan reconnectDelay)
         {
             _config.ReconnectDelay = reconnectDelay;
+            return this;
+        }
+
+        /// <summary>
+        ///     Sets the interval at which the registration request is re-published until registration is accepted. Optional —
+        ///     defaults to 30 seconds when not called.
+        /// </summary>
+        /// <returns>This builder, for chaining.</returns>
+        public ServiceProviderClientBuilder WithRegistrationRepublishInterval(TimeSpan registrationRepublishInterval)
+        {
+            _config.RegistrationRepublishInterval = registrationRepublishInterval;
+            return this;
+        }
+
+        /// <summary>
+        ///     Persists the operational credentials through <paramref name="operationalCredentialsStore" /> instead of the
+        ///     SDK's default location. Optional — see
+        ///     <see cref="ServiceProviderClientConfiguration.OperationalCredentialsStore" /> for what that default is.
+        /// </summary>
+        /// <param name="operationalCredentialsStore">
+        ///     The store to persist credentials with. <see cref="OperationalCredentialsStore" /> is the file-backed
+        ///     implementation the SDK ships.
+        /// </param>
+        /// <returns>This builder, for chaining.</returns>
+        public ServiceProviderClientBuilder WithOperationalCredentialsStore(IOperationalCredentialsStore operationalCredentialsStore)
+        {
+            _config.OperationalCredentialsStore = operationalCredentialsStore;
             return this;
         }
 
