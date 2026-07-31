@@ -45,6 +45,10 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         // is configured and however long each attempt takes to fail.
         private static readonly TimeSpan HeldCredentialRetryWindow = TimeSpan.FromSeconds(90);
 
+        // 15 seconds is usually plenty for a request to be answered, and waiting longer than a minute stops making sense.
+        // A single refusal can be a one-off that the next attempt clears, so the interval only widens after two.
+        private static readonly RegistrationRepublishPolicy RepublishPolicy = new(TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(60), 2, 2);
+
         private static readonly TimeSpan RegistrationConnectRetryDelay = TimeSpan.FromSeconds(5);
 
         private static readonly ObjectPool<MqttApplicationMessage> MessagePool = new(static () => new MqttApplicationMessage
@@ -89,6 +93,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         private MqttConnectionData? _connectionData;
 
+        private int _consecutiveUnusableCredentials;
+
         private MqttClientSubscribeOptions? _currentClientSubscriptionOptions;
 
         private volatile HandlerConfiguration[] _handlers = [];
@@ -106,6 +112,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                          Justification =
                              "Disposed via SafeCancelAndDispose in DisposeAsync, which cancels then disposes through a ref parameter — CA2213 cannot track disposal across the helper.")]
         private CancellationTokenSource? _registrationCts;
+
+        private TimeSpan _registrationRepublishInterval = RepublishPolicy.InitialInterval;
 
         private string? _secret;
 
@@ -741,6 +749,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 {
                     case OperationalConnectOutcome.Connected:
                         _heldCredentialsUnreachableSince = null;
+                        ResetRegistrationRepublishInterval();
                         return true;
                     case OperationalConnectOutcome.TransportFailed:
                         _heldCredentialsUnreachableSince ??= DateTime.UtcNow;
@@ -765,14 +774,44 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             _operationalCredentialsStore.Write(operationalData);
 
             var outcome = await ConnectOperationalClientAsync(stoppingToken);
-            if (outcome == OperationalConnectOutcome.AuthRejected)
+            switch (outcome)
             {
-                // Freshly issued credentials the broker still refuses — do not carry them into the next attempt.
-                LogOperationalCredentialsRejected();
-                DiscardOperationalCredentials();
+                case OperationalConnectOutcome.Connected:
+                    ResetRegistrationRepublishInterval();
+                    break;
+                case OperationalConnectOutcome.AuthRejected:
+                    // Accepted and then refused: the answer was already stale when it arrived, which means requests are
+                    // outrunning the round trip. Ask less often until they stop doing so.
+                    LogOperationalCredentialsRejected();
+                    DiscardOperationalCredentials();
+                    BackOffRegistrationRepublishInterval();
+                    break;
             }
 
             return outcome == OperationalConnectOutcome.Connected;
+        }
+
+        private void ResetRegistrationRepublishInterval()
+        {
+            _consecutiveUnusableCredentials = 0;
+            _registrationRepublishInterval = RepublishPolicy.InitialInterval;
+        }
+
+        private void BackOffRegistrationRepublishInterval()
+        {
+            if (++_consecutiveUnusableCredentials % RepublishPolicy.UnusableCredentialsPerBackOff != 0)
+            {
+                return;
+            }
+
+            var widened = RepublishPolicy.Next(_registrationRepublishInterval);
+            if (widened == _registrationRepublishInterval)
+            {
+                return;
+            }
+
+            _registrationRepublishInterval = widened;
+            LogRegistrationRepublishIntervalIncreased(widened);
         }
 
         private void DiscardOperationalCredentials()
@@ -1005,6 +1044,9 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                  "— discarding them and registering against the configured broker instead")]
         private partial void LogHeldCredentialsUnreachable(string host, int port, TimeSpan window);
 
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Registration requests are outrunning the round trip — asking every {Interval} from now on")]
+        private partial void LogRegistrationRepublishIntervalIncreased(TimeSpan interval);
+
         [LoggerMessage(Level = LogLevel.Warning, Message = "Service-provider startup is blocked until registration is accepted (CorrelationId={CorrelationId}, Topic={Topic})")]
         private partial void LogWaitingForRegistration(Guid correlationId, string topic);
 
@@ -1055,6 +1097,26 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "Failed to dispose CancellationTokenSource (Name={Name})")]
         private partial void LogCancellationTokenSourceDisposeFailed(Exception exception, string name);
+
+        /// <summary>
+        ///     How often the registration request repeats while waiting to be accepted, and how that interval widens when
+        ///     the credentials it produces turn out to be unusable.
+        /// </summary>
+        /// <param name="InitialInterval">The interval to start at, and to return to once a connection succeeds.</param>
+        /// <param name="MaxInterval">The widest the interval may become.</param>
+        /// <param name="UnusableCredentialsPerBackOff">
+        ///     How many consecutive accepted registrations whose credentials were then refused it takes to widen the interval
+        ///     another step.
+        /// </param>
+        /// <param name="GrowthFactor">What the interval is multiplied by when it widens.</param>
+        private readonly record struct RegistrationRepublishPolicy(TimeSpan InitialInterval, TimeSpan MaxInterval, int UnusableCredentialsPerBackOff, int GrowthFactor)
+        {
+            public TimeSpan Next(TimeSpan current)
+            {
+                var grown = current * GrowthFactor;
+                return grown > MaxInterval ? MaxInterval : grown;
+            }
+        }
 
         /// <summary>
         ///     What the broker made of an operational connection attempt. The distinction that matters is whether the
@@ -1453,7 +1515,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                                                                       LogRegistrationDeniedDeserializationError(ex, correlationId);
                                                                   }
 
-                                                                  LogRegistrationDenied(reason, _configuration.RegistrationRepublishInterval, correlationId);
+                                                                  LogRegistrationDenied(reason, _registrationRepublishInterval, correlationId);
                                                                   return Task.CompletedTask;
                                                               }
 
@@ -1480,7 +1542,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 {
                     registrationToken.ThrowIfCancellationRequested();
 
-                    var delay = _configuration.RegistrationRepublishInterval;
+                    var delay = _registrationRepublishInterval;
                     try
                     {
                         if (!client.IsConnected &&

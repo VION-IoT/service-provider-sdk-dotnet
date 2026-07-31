@@ -21,7 +21,7 @@ What follows from them:
 - **A broker refusing credentials with `0x86`/`0x87` means they have since become invalidated** — never "not applied yet". Retrying them cannot help; request new ones. Other broker
   errors may be transient, so retrying the connection is fine.
 - **Requesting faster than the round trip destroys each answer before it can be used**, since each request invalidates the last password. The round trip is ~3s healthy and under
-  ~15s loaded, which is what makes the 30-second default safe.
+  ~15s loaded, which is what the 15-second starting interval is set to clear. The SDK backs that interval off automatically if reality proves worse, so there is nothing to tune.
 - **Nothing is retained**, so a service provider has to keep requesting until it is accepted. A denial is informational, not terminal.
 - **Approval is polled, not pushed.** A customer's decision arrives on the next request, so the republish interval is also the approval latency.
 - **Credentials may be cached and tried first on reconnect**, which is what removes registration from the reconnect path entirely. There is no guarantee a cached credential is still
@@ -158,7 +158,7 @@ stateDiagram-v2
         - Subscribe: system/.../denied/{registrationClientId}
         - Publish: system/.../request/{registrationClientId}
           (NOT retained; payload carries serviceProviderIdentifier + secret)
-        - Republish every RegistrationRepublishInterval (default 30s) until accepted
+        - Republish every 15s until accepted, backing off to 30s then 60s if answers arrive stale
         - Denial is non-terminal: logged, republishing continues, recovers when cleared
         - Approval is polled, not pushed: it arrives on the next republish
     end note
@@ -238,7 +238,7 @@ platform update, and a denial or deletion removes the entry. That case is handle
    `application/json`, payload `ServiceProviderRegistrationRequestPayload` carrying the `serviceProviderIdentifier` **and the secret**. The identifier and secret are read from the
    payload, the client-id from the topic.
 
-4. **WaitingForAcceptance**: Wait for a registration response. The registration request is (re)published every `RegistrationRepublishInterval` (default 30 seconds) until acceptance
+4. **WaitingForAcceptance**: Wait for a registration response. The registration request is (re)published every 15 seconds until acceptance
    arrives. Publishing on an interval rather than once is what makes the whole flow recoverable, because **nothing is retained in either direction and outcomes are never
    pushed**:
     - A **denial** (`system/serviceProvider/registration/denied/{registrationClientId}`) is **non-terminal** — logged at warning level with the reason carried in the denial, after which
@@ -580,7 +580,7 @@ gracefully, allowing the new flow to proceed without conflicts.
 
 ### Error Recovery
 
-- **Registration publish failure**: Log warning, retry after 30 seconds
+- **Registration publish failure**: Log warning, retry after 5 seconds
 - **Setup schema publish failure**: Log warning, retry after 5 seconds
 - **Health publish failure**: Log warning, continue operation
 - **Declaration publish failure**: Log warning, continue operation
@@ -675,9 +675,10 @@ gracefully, allowing the new flow to proceed without conflicts.
 
 ### Retry Strategies
 
-- **Registration**: Republish every `RegistrationRepublishInterval` indefinitely (default 30 seconds; configurable, and used exactly as configured). Too short and requests outrun
-  the round trip, because each one issues a fresh password that invalidates the previous one; too long and customer approval is slow, since the interval is also the approval
-  latency
+- **Registration**: Republish indefinitely, starting at 15 seconds. Not configurable — the interval adapts instead. Too short and requests outrun the round trip, because each one
+  issues a fresh password that invalidates the previous one; too long and customer approval is slow, since the interval is also the approval latency. When a registration is
+  accepted and the credentials it carried are then refused, the answer was already stale on arrival — two of those in a row doubles the interval, to 30 then 60 seconds, and a
+  successful connection resets it to 15
 - **Setup schema**: Published once (retained), then polled for the selection on a 1-second tick; republished only after a failed publish. Blocks startup indefinitely
 - **Connection failure**: Retried by the disconnection handler after `ReconnectDelay` (default 5 seconds)
 - **Message publish failure**: Log warning, no automatic retry (except for registration and setup schema)
