@@ -1024,9 +1024,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to deserialize registration denied payload — the denial still stands (CorrelationId={CorrelationId})")]
         private partial void LogRegistrationDeniedDeserializationError(Exception exception, Guid correlationId);
 
-        [LoggerMessage(Level = LogLevel.Warning,
-                       Message = "Registration client disconnected — will republish the registration request on reconnect " +
-                                 "(ReasonString={ReasonString}, Reason={Reason}, CorrelationId={CorrelationId})")]
+        [LoggerMessage(Level = LogLevel.Information, Message = "Registration client disconnected (ReasonString={ReasonString}, Reason={Reason}, CorrelationId={CorrelationId})")]
         private partial void LogRegistrationClientDisconnected(string? reasonString, MqttClientDisconnectReason reason, Guid correlationId);
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to connect registration client — will retry shortly (ResultCode={ResultCode}, Reason={Reason})")]
@@ -1038,8 +1036,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         private partial void LogOperationalCredentialsRejected();
 
         [LoggerMessage(Level = LogLevel.Warning,
-                       Message = "Could not reach the broker the held credentials name for {Window} (Host={Host}, Port={Port}) " +
-                                 "— discarding them and registering against the configured broker instead")]
+                       Message = "Broker at {Host}:{Port} unreachable for {Window} — discarding the stored operational MQTT data and sending a new registration request")]
         private partial void LogHeldCredentialsUnreachable(string host, int port, TimeSpan window);
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Registration requests are outrunning the round trip — asking every {Interval} from now on")]
@@ -1063,13 +1060,11 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         private partial void LogRegistrationCredentialsReceived(int publishCount, Guid correlationId);
 
         [LoggerMessage(Level = LogLevel.Information,
-                       Message = "Received operational credentials " +
-                                 "(InstallationTopic={InstallationTopic}, ClientId={ClientId}, Username={Username}, PasswordLength={PasswordLength}, " +
+                       Message = "Received operational credentials (InstallationTopic={InstallationTopic}, ClientId={ClientId}, Username={Username}, " +
                                  "ServiceProviderIdentifier={ServiceProviderIdentifier}, Host={Host}, Port={Port}, CorrelationId={CorrelationId})")]
         private partial void LogOperationalCredentials(string installationTopic,
                                                        string clientId,
                                                        string username,
-                                                       int passwordLength,
                                                        string serviceProviderIdentifier,
                                                        string host,
                                                        int port,
@@ -1566,7 +1561,11 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
                             if (await PublishRawAsync(client, msg, correlationId, registrationToken))
                             {
-                                LogRegistrationRequestPublished(publishCount, correlationId);
+                                // A service provider waiting on approval republishes indefinitely, so only the first and then every twentieth are logged.
+                                if (publishCount == 1 || publishCount % 20 == 0)
+                                {
+                                    LogRegistrationRequestPublished(publishCount, correlationId);
+                                }
                             }
                             else
                             {
@@ -1599,7 +1598,6 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 LogOperationalCredentials(operationalData.InstallationTopic,
                                           operationalData.ClientId,
                                           operationalData.Username,
-                                          operationalData.Password.Length,
                                           operationalData.ConnectionData.ServiceProviderIdentifier,
                                           operationalData.ConnectionData.Host,
                                           operationalData.ConnectionData.Port,
