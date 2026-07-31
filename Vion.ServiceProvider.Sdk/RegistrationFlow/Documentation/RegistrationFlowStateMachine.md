@@ -675,8 +675,6 @@ gracefully, allowing the new flow to proceed without conflicts.
 
 ### Retry Strategies
 
-- **Re-registration**: Never sooner than `RegistrationRepublishInterval` after the previous registration completed, whichever path asks for it — a refused credential would
-  otherwise be reissued and destroyed at the reconnect cadence
 - **Registration**: Republish every `RegistrationRepublishInterval` indefinitely (default 30 seconds; configurable, and used exactly as configured). Too short and requests outrun
   the round trip, because each one issues a fresh password that invalidates the previous one; too long and customer approval is slow, since the interval is also the approval
   latency

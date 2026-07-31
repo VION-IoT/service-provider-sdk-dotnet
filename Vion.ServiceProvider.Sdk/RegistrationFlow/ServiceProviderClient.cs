@@ -97,8 +97,6 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         private DateTime? _heldCredentialsUnreachableSince;
 
-        private DateTime? _lastRegistrationCompletedAt;
-
         private volatile OperationalData? _operationalData;
 
         private RegistrationCredentials? _registrationCredentials;
@@ -762,13 +760,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 }
             }
 
-            // Every request mints a new operational password and invalidates the previous one, so registering must never
-            // outrun the republish interval — including on the paths that reach here through a failed connect, which are
-            // paced by the much shorter reconnect delay. Without this, credentials the broker refuses would be reissued
-            // and destroyed faster than a round trip can complete, indefinitely.
-            await WaitForRegistrationSpacingAsync(stoppingToken);
             var operationalData = await RegisterAsync(_connectionData!, _secret!, _registrationCredentials!.Value, stoppingToken);
-            _lastRegistrationCompletedAt = DateTime.UtcNow;
             _operationalData = operationalData;
             _operationalCredentialsStore.Write(operationalData);
 
@@ -781,24 +773,6 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             }
 
             return outcome == OperationalConnectOutcome.Connected;
-        }
-
-        private async Task WaitForRegistrationSpacingAsync(CancellationToken stoppingToken)
-        {
-            if (_lastRegistrationCompletedAt is not { } lastRegistration)
-            {
-                return;
-            }
-
-            var sinceLastRegistration = DateTime.UtcNow - lastRegistration;
-            if (sinceLastRegistration >= _configuration.RegistrationRepublishInterval)
-            {
-                return;
-            }
-
-            var wait = _configuration.RegistrationRepublishInterval - sinceLastRegistration;
-            LogWaitingBeforeRegisteringAgain(wait);
-            await Task.Delay(wait, stoppingToken);
         }
 
         private void DiscardOperationalCredentials()
@@ -1030,9 +1004,6 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                        Message = "Could not reach the broker the held credentials name for {Window} (Host={Host}, Port={Port}) " +
                                  "— discarding them and registering against the configured broker instead")]
         private partial void LogHeldCredentialsUnreachable(string host, int port, TimeSpan window);
-
-        [LoggerMessage(Level = LogLevel.Information, Message = "Waiting {Wait} before registering again — a request may not outrun the republish interval")]
-        private partial void LogWaitingBeforeRegisteringAgain(TimeSpan wait);
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Service-provider startup is blocked until registration is accepted (CorrelationId={CorrelationId}, Topic={Topic})")]
         private partial void LogWaitingForRegistration(Guid correlationId, string topic);
