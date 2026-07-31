@@ -132,12 +132,12 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         public required string Secret { get; init; }
 
         /// <summary>
-        ///     Gets or sets the store that persists operational credentials across process restarts, so a restart
-        ///     reconnects instead of registering again. When <c>null</c> (the default), they are persisted to
-        ///     <c>data/operationalMqttCredentials.json</c> under the application base directory; supply a store to put
+        ///     Gets or sets the store that persists the operational MQTT data across process restarts, so a restart
+        ///     reconnects instead of registering again. When <c>null</c> (the default), it is persisted to
+        ///     <c>data/operationalMqttData.json</c> under the application base directory; supply a store to put
         ///     them somewhere else.
         /// </summary>
-        public IOperationalCredentialsStore? OperationalCredentialsStore { get; set; }
+        public IOperationalMqttDataStore? OperationalMqttDataStore { get; set; }
 
         /// <summary>
         ///     Gets or initializes the well-known, bootstrap credentials the registration client authenticates with
@@ -468,18 +468,18 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         }
 
         /// <summary>
-        ///     Persists the operational credentials through <paramref name="operationalCredentialsStore" /> instead of the
+        ///     Persists the operational MQTT data through <paramref name="operationalMqttDataStore" /> instead of the
         ///     SDK's default location. Optional — see
-        ///     <see cref="ServiceProviderClientConfiguration.OperationalCredentialsStore" /> for what that default is.
+        ///     <see cref="ServiceProviderClientConfiguration.OperationalMqttDataStore" /> for what that default is.
         /// </summary>
-        /// <param name="operationalCredentialsStore">
-        ///     The store to persist credentials with. <see cref="OperationalCredentialsStore" /> is the file-backed
+        /// <param name="operationalMqttDataStore">
+        ///     The store to persist the data with. <see cref="OperationalMqttDataStore" /> is the file-backed
         ///     implementation the SDK ships.
         /// </param>
         /// <returns>This builder, for chaining.</returns>
-        public ServiceProviderClientBuilder WithOperationalCredentialsStore(IOperationalCredentialsStore operationalCredentialsStore)
+        public ServiceProviderClientBuilder WithOperationalMqttDataStore(IOperationalMqttDataStore operationalMqttDataStore)
         {
-            _config.OperationalCredentialsStore = operationalCredentialsStore;
+            _config.OperationalMqttDataStore = operationalMqttDataStore;
             return this;
         }
 

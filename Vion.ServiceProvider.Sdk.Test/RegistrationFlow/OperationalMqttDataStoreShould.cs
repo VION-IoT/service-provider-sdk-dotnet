@@ -9,9 +9,9 @@ using Vion.ServiceProvider.Sdk.RegistrationFlow;
 namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
 {
     [TestClass]
-    public class OperationalCredentialsStoreShould
+    public class OperationalMqttDataStoreShould
     {
-        private const string FilePath = "/data/operationalMqttCredentials.json";
+        private const string FilePath = "/data/operationalMqttData.json";
 
         private const string TemporaryFilePath = FilePath + ".tmp";
 
@@ -25,7 +25,7 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
                                                                 "a-service-provider",
                                                                 "an-operational-password");
 
-        private OperationalCredentialsStore _sut = null!;
+        private OperationalMqttDataStore _sut = null!;
 
         [TestInitialize]
         public void Initialize()
@@ -41,7 +41,7 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
                                                                        _diskState.Remove(sourcePath);
                                                                    });
             _diskAccessProviderMock.Setup(disk => disk.DeleteFile(It.IsAny<string>())).Callback<string>(path => _diskState.Remove(path));
-            _sut = new OperationalCredentialsStore(_diskAccessProviderMock.Object, FilePath, Mock.Of<ILogger>());
+            _sut = new OperationalMqttDataStore(_diskAccessProviderMock.Object, FilePath, Mock.Of<ILogger>());
         }
 
         [TestMethod]

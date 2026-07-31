@@ -8,7 +8,7 @@ using Vion.ServiceProvider.Sdk.JsonSerializationContexts;
 namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 {
     /// <inheritdoc />
-    public sealed partial class OperationalCredentialsStore : IOperationalCredentialsStore
+    public sealed partial class OperationalMqttDataStore : IOperationalMqttDataStore
     {
         private readonly IDiskAccessProvider _diskAccessProvider;
 
@@ -17,12 +17,12 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         private readonly ILogger _logger;
 
         /// <summary>
-        ///     Initializes a new instance of the <see cref="OperationalCredentialsStore" /> class.
+        ///     Initializes a new instance of the <see cref="OperationalMqttDataStore" /> class.
         /// </summary>
-        /// <param name="diskAccessProvider">The disk access used to read and persist the credentials.</param>
-        /// <param name="filePath">The file path the credentials are persisted to.</param>
+        /// <param name="diskAccessProvider">The disk access used to read and persist the data.</param>
+        /// <param name="filePath">The file path the data is persisted to.</param>
         /// <param name="logger">The logger.</param>
-        public OperationalCredentialsStore(IDiskAccessProvider diskAccessProvider, string filePath, ILogger logger)
+        public OperationalMqttDataStore(IDiskAccessProvider diskAccessProvider, string filePath, ILogger logger)
         {
             _diskAccessProvider = diskAccessProvider;
             _filePath = filePath;
@@ -42,16 +42,16 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 var operationalData = JsonSerializer.Deserialize(_diskAccessProvider.ReadAllText(_filePath), ServiceProviderJsonContext.Default.OperationalData);
                 if (operationalData == null)
                 {
-                    LogCredentialsUnreadable(_filePath);
+                    LogDataUnreadable(_filePath);
                     return null;
                 }
 
-                LogCredentialsLoaded(_filePath);
+                LogDataLoaded(_filePath);
                 return operationalData;
             }
             catch (Exception exception)
             {
-                LogCredentialsReadFailed(exception, _filePath);
+                LogDataReadFailed(exception, _filePath);
                 return null;
             }
         }
@@ -73,7 +73,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             }
             catch (Exception exception)
             {
-                LogCredentialsWriteFailed(exception, _filePath);
+                LogDataWriteFailed(exception, _filePath);
             }
         }
 
@@ -86,23 +86,23 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             }
             catch (Exception exception)
             {
-                LogCredentialsClearFailed(exception, _filePath);
+                LogDataClearFailed(exception, _filePath);
             }
         }
 
-        [LoggerMessage(Level = LogLevel.Information, Message = "Loaded stored operational credentials from '{Path}'")]
-        private partial void LogCredentialsLoaded(string path);
+        [LoggerMessage(Level = LogLevel.Information, Message = "Loaded stored operational MQTT data from '{Path}'")]
+        private partial void LogDataLoaded(string path);
 
-        [LoggerMessage(Level = LogLevel.Warning, Message = "Stored operational credentials at '{Path}' could not be read back")]
-        private partial void LogCredentialsUnreadable(string path);
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Stored operational MQTT data at '{Path}' could not be read back")]
+        private partial void LogDataUnreadable(string path);
 
-        [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to read stored operational credentials from '{Path}'")]
-        private partial void LogCredentialsReadFailed(Exception exception, string path);
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to read stored operational MQTT data from '{Path}'")]
+        private partial void LogDataReadFailed(Exception exception, string path);
 
-        [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to store operational credentials at '{Path}'")]
-        private partial void LogCredentialsWriteFailed(Exception exception, string path);
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to store operational MQTT data at '{Path}'")]
+        private partial void LogDataWriteFailed(Exception exception, string path);
 
-        [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to remove stored operational credentials at '{Path}'")]
-        private partial void LogCredentialsClearFailed(Exception exception, string path);
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to remove stored operational MQTT data at '{Path}'")]
+        private partial void LogDataClearFailed(Exception exception, string path);
     }
 }

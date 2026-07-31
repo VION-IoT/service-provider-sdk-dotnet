@@ -85,7 +85,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         private readonly IMqttClient _operationalClient;
 
-        private readonly IOperationalCredentialsStore _operationalCredentialsStore;
+        private readonly IOperationalMqttDataStore _operationalMqttDataStore;
 
         private readonly SemaphoreSlim _startSemaphore = new(1, 1);
 
@@ -143,10 +143,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             _mqttClientFactory = mqttClientFactory;
             _logger = logger;
             _configuration = configuration;
-            _operationalCredentialsStore = configuration.OperationalCredentialsStore ??
-                                           new OperationalCredentialsStore(new DiskAccessProvider(),
-                                                                           Path.Combine(AppContext.BaseDirectory, "data", "operationalMqttCredentials.json"),
-                                                                           logger);
+            _operationalMqttDataStore = configuration.OperationalMqttDataStore ??
+                                        new OperationalMqttDataStore(new DiskAccessProvider(), Path.Combine(AppContext.BaseDirectory, "data", "operationalMqttData.json"), logger);
             _dispatcher = dispatcher;
             _operationalClient = _mqttClientFactory.CreateMqttClient();
             _operationalClient.ApplicationMessageReceivedAsync += OnApplicationMessageReceivedAsync;
@@ -737,7 +735,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         // to obtain a credential, never to reconnect with one.
         private async Task<bool> EstablishOperationalConnectionAsync(CancellationToken stoppingToken)
         {
-            var heldData = _operationalData ?? _operationalCredentialsStore.Read();
+            var heldData = _operationalData ?? _operationalMqttDataStore.Read();
             if (heldData != null)
             {
                 _operationalData = heldData;
@@ -771,7 +769,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
             var operationalData = await RegisterAsync(_connectionData!, _secret!, _registrationCredentials!.Value, stoppingToken);
             _operationalData = operationalData;
-            _operationalCredentialsStore.Write(operationalData);
+            _operationalMqttDataStore.Write(operationalData);
 
             var outcome = await ConnectOperationalClientAsync(stoppingToken);
             switch (outcome)
@@ -823,7 +821,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
             // identifier back out of them. Leaving it set would let a shutdown publish a health payload with a null
             // identifier on a connection we no longer have.
             _topicComponentHealthState = null;
-            _operationalCredentialsStore.Clear();
+            _operationalMqttDataStore.Clear();
         }
 
         private async Task<OperationalConnectOutcome> ConnectOperationalClientAsync(CancellationToken cancellationToken)

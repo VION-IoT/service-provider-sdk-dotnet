@@ -1,23 +1,23 @@
 namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 {
     /// <summary>
-    ///     Stores the operational credentials so they survive a process restart.
+    ///     Stores the operational MQTT data so it survives a process restart.
     /// </summary>
-    public interface IOperationalCredentialsStore
+    public interface IOperationalMqttDataStore
     {
         /// <summary>
-        ///     Returns the stored credentials, or <c>null</c> when nothing is stored or the stored content cannot be read back.
+        ///     Returns the stored data, or <c>null</c> when nothing is stored or the stored content cannot be read back.
         /// </summary>
         OperationalData? Read();
 
         /// <summary>
         ///     Stores <paramref name="operationalData" />, replacing any previous value.
         /// </summary>
-        /// <param name="operationalData">The credentials to store.</param>
+        /// <param name="operationalData">The operational MQTT data to store.</param>
         void Write(OperationalData operationalData);
 
         /// <summary>
-        ///     Removes any stored credentials.
+        ///     Removes any stored data.
         /// </summary>
         void Clear();
     }

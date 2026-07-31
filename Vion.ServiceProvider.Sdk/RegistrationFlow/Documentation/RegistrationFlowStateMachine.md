@@ -204,7 +204,7 @@ The broker authenticates operational clients from its own password file, so regi
 SDK therefore uses any credentials it already holds:
 
 1. The in-memory credentials from a previous connection, which survive a reconnect.
-2. Failing that, the persisted credentials from `IOperationalCredentialsStore`, which survive a process restart — including a whole gateway reboot, where the service provider can
+2. Failing that, the persisted data from `IOperationalMqttDataStore`, which survive a process restart — including a whole gateway reboot, where the service provider can
    come back before the rest of the platform has finished starting.
 
 If neither yields credentials, the flow registers as before. A held credential carries **no guarantee of still being valid**: the broker's password file can be recreated by a
@@ -668,8 +668,8 @@ gracefully, allowing the new flow to proceed without conflicts.
 
 - The secret is persisted across restarts (generated once, reused) — it is the service provider's proof of identity and must be high-entropy random, since it is stored as a fast
   unsalted hash
-- Operational credentials are cached in memory and persisted across process restarts, to `data/operationalMqttCredentials.json` unless an `IOperationalCredentialsStore` puts them
-  elsewhere. A stored credential is never assumed valid: a refusal discards it
+- The operational MQTT data — credentials plus the broker address, installation topic and operational client-id — is cached in memory and persisted across process restarts,
+  to `data/operationalMqttData.json` unless an `IOperationalMqttDataStore` puts it elsewhere. It is never assumed still valid: a refusal discards it
 - The registration client-id is never persisted: it is per-attempt ephemera
 - Handler registrations are configured at startup (not persisted)
 
