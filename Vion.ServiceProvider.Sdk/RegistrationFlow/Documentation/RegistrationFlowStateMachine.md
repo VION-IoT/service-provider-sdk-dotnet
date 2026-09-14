@@ -298,7 +298,7 @@ client-id is exactly the value the topics are keyed on — the broker's `%c` ACL
 
 2. **ConfiguringLastWill**: Configure Last Will Testament (LWT) so the broker automatically publishes offline health status if the connection is lost unexpectedly:
     - Topic: `{installationTopic}/{serviceProviderIdentifier}/component/health/state`
-    - Payload: FlatBuffer `ComponentHealthStatusPayload` with `ConnectionStatus.Offline` and `HealthStatus.Unknown`
+    - Payload: JSON `ComponentHealthStatusPayload` with `ConnectionStatus.Offline` and `HealthStatus.Unknown`
     - QoS: 1 (at least once)
     - Retain: true
 
@@ -440,7 +440,7 @@ kept and simply retried.
         - Publish health response to the `ResponseTopic` from the request
         - Echo the `CorrelationData` from the request
     - **ContractHandler**: When a contract topic `{installationTopic}/{serviceProviderIdentifier}/{service}/{contract}/#` matches:
-        - Process contract-specific messages according to contract type (e.g., DigitalIo, AnalogIo, ModbusRtu, custom handlers)
+        - Process contract-specific messages according to contract type (e.g., DigitalIo, AnalogIo, ModbusRtu, custom handlers). Hardware contract traffic is JSON
         - Publish state updates, respond to commands, or handle request-response patterns
     - **CustomHandler**: When a custom topic matches:
         - Execute application-defined logic
@@ -461,7 +461,8 @@ kept and simply retried.
     - Correlation Data: a GUID correlation ID, present on every message
     - User property `published_at`: ISO 8601 UTC timestamp
     - User property `schema`: Payload type name (required whenever a payload is present)
-    - Content-Type: `application/x-flatbuffer`, `application/json`, or `application/octet-stream`
+    - Content-Type: `application/json` (`MessageMimeTypes.Json`) for every message the SDK publishes itself. Handlers may publish other content types by passing them explicitly —
+      `application/x-flatbuffers` (`MessageMimeTypes.FlatBuffer`) is still carried for FlatBuffer traffic such as `Remote/Func`
 
 ---
 
@@ -637,9 +638,9 @@ gracefully, allowing the new flow to proceed without conflicts.
 
 | Topic                                                                    | Direction          | QoS | Retain | Content                                      |
 |--------------------------------------------------------------------------|--------------------|-----|--------|----------------------------------------------|
-| `{installationTopic}/{serviceProviderIdentifier}/component/health/state` | Provider → Runtime | 0   | Yes    | FlatBuffer health status (state publication) |
+| `{installationTopic}/{serviceProviderIdentifier}/component/health/state` | Provider → Runtime | 0   | Yes    | JSON health status (state publication)       |
 | `{installationTopic}/{serviceProviderIdentifier}/component/health/get`   | Runtime → Provider | 0   | No     | Empty (uses ResponseTopic)                   |
-| `{ResponseTopic}` (from health/get request)                              | Provider → Runtime | 0   | No     | FlatBuffer health status (query response)    |
+| `{ResponseTopic}` (from health/get request)                              | Provider → Runtime | 0   | No     | JSON health status (query response)          |
 
 ### Contract Topics
 
