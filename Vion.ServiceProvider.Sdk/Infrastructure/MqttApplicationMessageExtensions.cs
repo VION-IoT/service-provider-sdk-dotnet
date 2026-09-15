@@ -336,7 +336,7 @@ namespace Vion.ServiceProvider.Sdk.Infrastructure
     public sealed class MissingCorrelationIdException : Exception
     {
         /// <summary>Initializes the exception for a message with no correlation data.</summary>
-        public MissingCorrelationIdException() : base("Received message without a correlation ID.")
+        public MissingCorrelationIdException() : base("No MQTT v5 correlation data; publishers must set correlation data on every message.")
         {
         }
     }

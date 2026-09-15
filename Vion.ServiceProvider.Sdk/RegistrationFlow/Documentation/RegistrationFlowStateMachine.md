@@ -455,10 +455,11 @@ kept and simply retried.
 - All incoming messages go through the same handler matching logic - there are no separate "fast paths" for health or contract messages
 - Handlers are matched using MQTT topic-filter semantics (`MqttTopicFilterComparer.Compare`) against each handler's topic filter, so subscription wildcards (`+`/`#`) match incoming
   topics per the MQTT spec
-- Incoming messages without a parseable correlation ID violate the wire contract and are logged and dropped (not dispatched)
+- **Incoming messages without MQTT v5 correlation data are refused**: they violate the wire contract and are logged at `Error` and dropped, before any handler matching happens. The same
+  applies to correlation data that is present but is neither a 16-byte GUID nor a 36-character GUID string. See [Required message elements](#required-message-elements)
 - Multiple handlers can match the same message (they execute sequentially)
 - All published messages include:
-    - Correlation Data: a GUID correlation ID, present on every message
+    - Correlation Data: a GUID correlation ID, present on every message — echoed from the request when the message is a response
     - User property `published_at`: ISO 8601 UTC timestamp
     - User property `schema`: Payload type name (required whenever a payload is present)
     - Content-Type: `application/json` (`MessageMimeTypes.Json`) for every message the SDK publishes itself. Handlers may publish other content types by passing them explicitly —
@@ -611,6 +612,29 @@ gracefully, allowing the new flow to proceed without conflicts.
 
 ## Topic Patterns
 
+### Required message elements
+
+**Every message the provider consumes on its operational connection must carry MQTT v5 correlation data.** The check is unconditional and runs *before* topic matching: a message without it
+is logged at `Error` and dropped, no handler is matched, and no handler runs. A correct body, `application/json` content type and `schema` user property are *not* sufficient on their own —
+this is the element most often missed, because it lives in the MQTT v5 header rather than the payload.
+
+**Format**: the value must be a **GUID**, in one of two encodings — its 16 raw bytes, or its 36-character string form. The length is not the rule on its own: a 36-character value that does
+not parse as a GUID is refused just like a byte array of the wrong length, as a distinct "invalid correlation ID format" reason.
+
+**Request and response**: where a message is request-shaped — `hw/*/set`, `hw/*/get`, `sw/property/set`, function calls, `component/health/get`, and anything registered through
+`WithContractHandler` or `WithHandler` — the response carries the *same* correlation value back, which is how a caller pairs a reply with its request.
+
+The SDK sets correlation data on everything it publishes, so an SP built on this SDK and a runtime built on dale both satisfy this without doing anything. Hand-rolled publishers, test
+harnesses, `mosquitto_pub` one-liners and non-C# service providers must set it explicitly.
+
+> **The guard is not limited to requests.** A provider that subscribes to something which is not a request — another provider's state topic, or a retained state publication from a source
+> that does not set correlation data — has those messages dropped too, with the same `Error` line, whether or not any handler wanted a reply. Subscribe only to sources that set correlation
+> data, or expect the drops.
+
+Two inbound messages are read outside this path and are unaffected by the guard: **registration acceptance/denial**, which arrives on the temporary registration connection rather than the
+operational one, and the **setup selection**, which its own handler reads directly. The setup selection still passes through the guard in parallel, so one `Error` line is logged for it even
+though the selection is processed normally.
+
 ### Registration Topics
 
 | Topic                                                   | Direction          | QoS | Retain | Content                                                                                |
@@ -628,6 +652,9 @@ gracefully, allowing the new flow to proceed without conflicts.
 | `{installationTopic}/{serviceProviderIdentifier}/serviceProvider/setup/schema`    | Provider → Runtime | 1   | Yes    | JSON setup schema    |
 | `{installationTopic}/{serviceProviderIdentifier}/serviceProvider/setup/selection` | Runtime → Provider | 0   | No     | JSON setup selection |
 
+The setup selection is read by its own handler, so it is processed whether or not it carries correlation data. It still passes through the unconditional guard in parallel, so omitting
+correlation data costs one spurious `Error` line per selection — set it anyway.
+
 ### Declaration Topics
 
 | Topic                                                                                | Direction          | QoS | Retain | Content          |
@@ -642,11 +669,17 @@ gracefully, allowing the new flow to proceed without conflicts.
 | `{installationTopic}/{serviceProviderIdentifier}/component/health/get`   | Runtime → Provider | 0   | No     | Empty (uses ResponseTopic)                   |
 | `{ResponseTopic}` (from health/get request)                              | Provider → Runtime | 0   | No     | JSON health status (query response)          |
 
+`health/get` is request-shaped: it **must** carry correlation data even though its payload is empty, and the response on `{ResponseTopic}` echoes that value. See
+[Required message elements](#required-message-elements).
+
 ### Contract Topics
 
 | Topic Pattern                                                            | Direction     | QoS    | Retain | Content           |
 |--------------------------------------------------------------------------|---------------|--------|--------|-------------------|
 | `{installationTopic}/{serviceProviderIdentifier}/{service}/{contract}/#` | Bidirectional | Varies | Varies | Contract-specific |
+
+Every inbound contract message — `hw/*/set`, `hw/*/get`, `sw/property/set`, function calls — **must** carry correlation data, and the response echoes it. A publisher that omits it gets no
+handler run and no reply, only an `Error` line at the provider. See [Required message elements](#required-message-elements).
 
 ## Implementation Notes
 

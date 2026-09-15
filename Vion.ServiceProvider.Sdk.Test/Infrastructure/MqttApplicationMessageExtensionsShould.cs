@@ -104,6 +104,19 @@ namespace Vion.ServiceProvider.Sdk.Test.Infrastructure
         }
 
         [TestMethod]
+        public void NameTheRemedyWhenCorrelationDataIsMissing()
+        {
+            // Arrange — the refusal is logged verbatim as the drop reason, so it has to tell a publisher what to fix.
+            var message = new MqttApplicationMessage();
+
+            // Act
+            var exception = Assert.Throws<MissingCorrelationIdException>(() => message.GetCorrelationId());
+
+            // Assert
+            Assert.AreEqual("No MQTT v5 correlation data; publishers must set correlation data on every message.", exception.Message);
+        }
+
+        [TestMethod]
         public void ReturnCorrelationIdFromBinaryGuid()
         {
             // Arrange
