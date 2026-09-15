@@ -614,18 +614,26 @@ gracefully, allowing the new flow to proceed without conflicts.
 
 ### Required message elements
 
-**Every request-shaped message must carry MQTT v5 correlation data, and the response echoes the same value back.** A request that arrives without it is refused before dispatch: it is logged
-at `Error` and dropped, and no handler runs. A correct body, `application/json` content type and `schema` user property are *not* sufficient on their own — this is the element most often
-missed, because it lives in the MQTT v5 header rather than the payload.
+**Every message the provider consumes on its operational connection must carry MQTT v5 correlation data.** The check is unconditional and runs *before* topic matching: a message without it
+is logged at `Error` and dropped, no handler is matched, and no handler runs. A correct body, `application/json` content type and `schema` user property are *not* sufficient on their own —
+this is the element most often missed, because it lives in the MQTT v5 header rather than the payload.
 
-This applies to every message the operational client dispatches to a handler: `hw/*/set`, `hw/*/get`, `sw/property/set`, function calls, `component/health/get`, and any topic registered
-through `WithContractHandler` or `WithHandler`. Registration acceptance/denial and the setup selection are read by their own handlers and do not go through handler dispatch, so the
-requirement does not reach them.
+**Format**: correlation data is accepted as a 16-byte GUID, or as that GUID's 36-character string form. Anything else — a shorter or longer byte array, or 36 bytes that do not parse as a
+GUID — is refused the same way, as a distinct "invalid correlation ID format" reason.
+
+**Request and response**: where a message is request-shaped — `hw/*/set`, `hw/*/get`, `sw/property/set`, function calls, `component/health/get`, and anything registered through
+`WithContractHandler` or `WithHandler` — the response carries the *same* correlation value back, which is how a caller pairs a reply with its request.
 
 The SDK sets correlation data on everything it publishes, so an SP built on this SDK and a runtime built on dale both satisfy this without doing anything. Hand-rolled publishers, test
 harnesses, `mosquitto_pub` one-liners and non-C# service providers must set it explicitly.
 
-Correlation data is accepted in two forms — a 16-byte GUID, or a 36-character GUID string — and anything else is refused the same way.
+> **The guard is not limited to requests.** A provider that subscribes to something which is not a request — another provider's state topic, or a retained state publication from a source
+> that does not set correlation data — has those messages dropped too, with the same `Error` line, whether or not any handler wanted a reply. Subscribe only to sources that set correlation
+> data, or expect the drops.
+
+Two inbound messages are read outside this path and are unaffected by the guard: **registration acceptance/denial**, which arrives on the temporary registration connection rather than the
+operational one, and the **setup selection**, which its own handler reads directly. The setup selection still passes through the guard in parallel, so one `Error` line is logged for it even
+though the selection is processed normally.
 
 ### Registration Topics
 
@@ -644,8 +652,8 @@ Correlation data is accepted in two forms — a 16-byte GUID, or a 36-character 
 | `{installationTopic}/{serviceProviderIdentifier}/serviceProvider/setup/schema`    | Provider → Runtime | 1   | Yes    | JSON setup schema    |
 | `{installationTopic}/{serviceProviderIdentifier}/serviceProvider/setup/selection` | Runtime → Provider | 0   | No     | JSON setup selection |
 
-The setup selection is read by its own handler rather than through handler dispatch, so it is the one inbound message that does not require correlation data. Sending it anyway is
-harmless and recommended, and keeps a spurious `Error` line out of the provider's log.
+The setup selection is read by its own handler, so it is processed whether or not it carries correlation data. It still passes through the unconditional guard in parallel, so omitting
+correlation data costs one spurious `Error` line per selection — set it anyway.
 
 ### Declaration Topics
 

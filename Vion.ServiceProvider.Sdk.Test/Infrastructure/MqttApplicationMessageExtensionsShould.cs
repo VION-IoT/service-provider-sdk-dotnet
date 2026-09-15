@@ -113,7 +113,7 @@ namespace Vion.ServiceProvider.Sdk.Test.Infrastructure
             var exception = Assert.Throws<MissingCorrelationIdException>(() => message.GetCorrelationId());
 
             // Assert
-            Assert.AreEqual("No MQTT v5 correlation data on a request; publishers must set correlation data on every request.", exception.Message);
+            Assert.AreEqual("No MQTT v5 correlation data; publishers must set correlation data on every message.", exception.Message);
         }
 
         [TestMethod]

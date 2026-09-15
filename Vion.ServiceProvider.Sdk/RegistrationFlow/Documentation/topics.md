@@ -22,8 +22,8 @@ The SDK implements MQTT communication through:
 | `{installationTopic}{serviceProviderIdentifier}/{service}/{contract}/#`          | Operational  | `ServiceProviderClientConfigurationBuilder.cs` | `WithContractHandler`  | Contract-specific message handlers                |
 | Custom topics registered via `WithHandler`                                       | Operational  | `ServiceProviderClientConfigurationBuilder.cs` | `WithHandler`          | User-defined message handlers                     |
 
-> **Inbound messages dispatched to a handler must carry MQTT v5 correlation data.** The contract-handler and `WithHandler` rows above are refused without it — logged at `Error` and
-> dropped, with no handler run and no reply. See
+> **Every inbound message on the operational connection must carry MQTT v5 correlation data**, as a 16-byte GUID or its 36-character string form. The check runs before topic matching, so a
+> message without it is logged at `Error` and dropped with no handler run and no reply — including a subscription that is not request-shaped. See
 > [Required message elements](RegistrationFlowStateMachine.md#required-message-elements).
 
 ---
