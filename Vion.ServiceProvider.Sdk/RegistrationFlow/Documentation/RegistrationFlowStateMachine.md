@@ -618,8 +618,8 @@ gracefully, allowing the new flow to proceed without conflicts.
 is logged at `Error` and dropped, no handler is matched, and no handler runs. A correct body, `application/json` content type and `schema` user property are *not* sufficient on their own —
 this is the element most often missed, because it lives in the MQTT v5 header rather than the payload.
 
-**Format**: correlation data is accepted as a 16-byte GUID, or as that GUID's 36-character string form. Anything else — a shorter or longer byte array, or 36 bytes that do not parse as a
-GUID — is refused the same way, as a distinct "invalid correlation ID format" reason.
+**Format**: the value must be a **GUID**, in one of two encodings — its 16 raw bytes, or its 36-character string form. The length is not the rule on its own: a 36-character value that does
+not parse as a GUID is refused just like a byte array of the wrong length, as a distinct "invalid correlation ID format" reason.
 
 **Request and response**: where a message is request-shaped — `hw/*/set`, `hw/*/get`, `sw/property/set`, function calls, `component/health/get`, and anything registered through
 `WithContractHandler` or `WithHandler` — the response carries the *same* correlation value back, which is how a caller pairs a reply with its request.
