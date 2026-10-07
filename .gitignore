@@ -63,8 +63,10 @@ _ReSharper*/
 *.DotSettings.user
 
 # Cross-repo planning lives in the architecture repo (decision 0011). This repo
-# doesn't track Claude tooling state or planning artifacts, except shared,
-# repo-scoped slash commands under .claude/commands/ (e.g. /cleanup).
+# doesn't track Claude tooling state or planning artifacts, except what every clone
+# shares: repo-scoped slash commands under .claude/commands/ (e.g. /cleanup) and
+# .claude/settings.json.
 .claude/*
 !.claude/commands/
+!.claude/settings.json
 docs/superpowers/
