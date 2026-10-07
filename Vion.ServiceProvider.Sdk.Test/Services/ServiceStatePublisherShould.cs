@@ -119,20 +119,15 @@ namespace Vion.ServiceProvider.Sdk.Test.Services
                                                                             It.IsAny<ReadOnlyMemory<byte>>(),
                                                                             It.IsAny<MqttQualityOfServiceLevel>(),
                                                                             It.IsAny<bool>()))
-                          .Callback((string topic,
-                                     Guid correlationId,
-                                     CancellationToken _,
-                                     string? contentType,
-                                     string? schema,
-                                     ReadOnlyMemory<byte> payload,
-                                     MqttQualityOfServiceLevel qos,
-                                     bool retain) => captured = new PublishCall(topic,
-                                                                                correlationId,
-                                                                                contentType,
-                                                                                schema,
-                                                                                payload.ToArray(),
-                                                                                qos,
-                                                                                retain))
+                          .Callback((string topic, Guid correlationId, CancellationToken _, string? contentType, string? schema,
+                                     ReadOnlyMemory<byte> payload, MqttQualityOfServiceLevel qos, bool retain) =>
+                                        captured = new PublishCall(topic,
+                                                                   correlationId,
+                                                                   contentType,
+                                                                   schema,
+                                                                   payload.ToArray(),
+                                                                   qos,
+                                                                   retain))
                           .ReturnsAsync(true);
 
             await _sut.PublishFieldAsync(_publisherMock.Object, SvcId, field, value, CancellationToken.None);

@@ -17,36 +17,6 @@ namespace Vion.ServiceProvider.Sdk.Infrastructure
     /// </summary>
     public static class MqttApplicationMessageExtensions
     {
-        private static string[] SplitSegments(int segmentCount, ReadOnlySpan<char> segmentParts)
-        {
-            var segments = new string[segmentCount];
-            var segmentIndex = 0;
-            var segmentStart = 0;
-            for (var i = 0; i <= segmentParts.Length; i++)
-            {
-                if (i != segmentParts.Length && segmentParts[i] != '/')
-                {
-                    continue;
-                }
-
-                if (segmentIndex == segments.Length)
-                {
-                    var actualSegments = segmentParts.Count('/') + 1; // +1 accounts for the first segment, which has no preceding slash due to Trim('/')
-                    throw new UnexpectedSegmentCountException(segmentCount, actualSegments);
-                }
-
-                segments[segmentIndex++] = segmentParts.Slice(segmentStart, i - segmentStart).ToString();
-                segmentStart = i + 1;
-            }
-
-            if (segmentIndex != segmentCount)
-            {
-                throw new UnexpectedSegmentCountException(segmentCount, segmentIndex);
-            }
-
-            return segments;
-        }
-
         extension(MqttApplicationMessage message)
         {
             /// <summary>
@@ -294,6 +264,36 @@ namespace Vion.ServiceProvider.Sdk.Infrastructure
                     throw new InvalidPayloadSchemaException(expectedSchema, schema);
                 }
             }
+        }
+
+        private static string[] SplitSegments(int segmentCount, ReadOnlySpan<char> segmentParts)
+        {
+            var segments = new string[segmentCount];
+            var segmentIndex = 0;
+            var segmentStart = 0;
+            for (var i = 0; i <= segmentParts.Length; i++)
+            {
+                if (i != segmentParts.Length && segmentParts[i] != '/')
+                {
+                    continue;
+                }
+
+                if (segmentIndex == segments.Length)
+                {
+                    var actualSegments = segmentParts.Count('/') + 1; // +1 accounts for the first segment, which has no preceding slash due to Trim('/')
+                    throw new UnexpectedSegmentCountException(segmentCount, actualSegments);
+                }
+
+                segments[segmentIndex++] = segmentParts.Slice(segmentStart, i - segmentStart).ToString();
+                segmentStart = i + 1;
+            }
+
+            if (segmentIndex != segmentCount)
+            {
+                throw new UnexpectedSegmentCountException(segmentCount, segmentIndex);
+            }
+
+            return segments;
         }
     }
 
