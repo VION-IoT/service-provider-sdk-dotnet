@@ -4,7 +4,7 @@ name: Pack & Publish
 # vX.Y.Z tag push also publishes to nuget.org using NUGET_API_KEY.
 #
 # The build/test/style gate (gate: true) runs in the pack job on every PR/main/tag,
-# reusing the one build — see CLAUDE.md (Code Style) and VION-IoT/shared-workflows
+# reusing the one build — see docs/conventions/code-style.md and VION-IoT/shared-workflows
 # actions/dotnet-gate. Pipeline logic lives in VION-IoT/shared-workflows; see that repo
 # for the input contract and version-pinning policy.
 

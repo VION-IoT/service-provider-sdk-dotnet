@@ -1,0 +1,17 @@
+name: Process journal lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  journal-lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: VION-IoT/shared-workflows/actions/journal-lint@v1

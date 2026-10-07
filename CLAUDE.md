@@ -3,6 +3,10 @@
 > Clone it: `git clone git@github.com:VION-IoT/architecture.git ../architecture`
 > Before planning a feature with scope ≥ 2 repos, read the relevant `architecture/systems/*.md`
 > and run `/spec <slug> <repos>` from the architecture repo.
+> Cross-repo work is dispatched with the `vion-dispatch` plugin
+> ([mechanics](https://github.com/VION-IoT/architecture/blob/main/plugins/vion-dispatch/README.md),
+> [VION procedure](https://github.com/VION-IoT/architecture/blob/main/runbooks/session-orchestration.md)).
+> A session dispatched into this repo ends with `/vion-dispatch:report`.
 
 # CLAUDE.md — service-provider-sdk-dotnet
 
@@ -13,57 +17,8 @@ implement the protocol directly. This SDK exists so C# SP authors don't
 have to hand-write the registration handshake, declaration workflow, or
 log-level / restart wiring.
 
-See [`architecture/libraries/service-provider-sdk-dotnet.md`](../architecture/libraries/service-provider-sdk-dotnet.md)
-for the cross-repo view and [`architecture/concepts/service-providers.md`](../architecture/concepts/service-providers.md)
-for what an SP is.
-
-## Build / test
-
-```powershell
-dotnet build Vion.ServiceProvider.Sdk.sln
-dotnet test Vion.ServiceProvider.Sdk.sln
-```
-
 Targets `net10.0`. The choice is driven by `MQTTnet`'s own targets — if
 the upstream MQTT client adds a netstandard build, we'd happily follow.
-
-## Code Style
-
-- C# with `ImplicitUsings: false` (all usings explicit).
-- `Nullable: enabled`.
-- Code cleanup: **ReSharper `cleanupcode`** with the `Custom: Full Cleanup (excl. optimize usings)` profile (JetBrains CLI) — see the cleanup note below. Do NOT use the `Built-in: Reformat Code` profile.
-- Allman brace style throughout.
-- Targets `net10.0`.
-
-Code style is **ReSharper cleanupcode** with the `Custom: Full Cleanup (excl. optimize usings)`
-profile in `Vion.ServiceProvider.Sdk.sln.DotSettings` — the same profile ReSharper/Rider apply on
-save. The single source of truth is **`scripts/cleanup-code.ps1`**: it restores the pinned `jb`
-tool (`.config/dotnet-tools.json`) and runs the exact cleanup. CI runs the same script with
-`-Verify` (fails on drift) via the shared `VION-IoT/shared-workflows` gate:
-`.github/workflows/publish.yml` calls `publish-nuget.yml` with `gate: true`, which runs
-`scripts/cleanup-code.ps1 -Verify` (the `dotnet-gate` composite) before packing — so local and CI
-can't diverge.
-
-**Before opening a PR: run `pwsh scripts/cleanup-code.ps1` (or the `/cleanup` slash command),
-review `git diff`, and commit any changes** — this keeps the CI style gate from failing the PR.
-**Agents: do this automatically before `gh pr create`.** Do NOT run cleanup with
-`--profile="Built-in: Reformat Code"` — it differs from the DotSettings profile and fights
-cleanup-on-save.
-
-**Formatter escape hatch:** for the rare span where `cleanupcode` formats inconsistently
-across OSes (local vs the Linux CI runner) or where you intentionally hand-format (e.g. an
-aligned table), wrap it in `// @formatter:off` / `// @formatter:on` with a short reason
-comment — `cleanupcode` honors these on every OS, so the style gate stays green. Use it
-sparingly and locally, never to opt a whole file out.
-
-## Where stuff lives
-
-| Path | Holds |
-|------|-------|
-| `Vion.ServiceProvider.Sdk/RegistrationFlow/` | The main API: `ServiceProviderClient`, `ServiceProviderClientConfigurationBuilder`, the `IServiceProviderClient` / `*Handler` / `*Publish` interfaces, `ServiceProviderTopics`, payload types |
-| `Vion.ServiceProvider.Sdk/JsonSerializationContexts/` | `System.Text.Json` source-generated contexts for SP↔mesh payloads |
-| `Vion.ServiceProvider.Sdk/Tracing/` | OpenTelemetry tracing helpers for SP-side spans |
-| `docs/` | Maintainer notes ([`releasing.md`](docs/releasing.md), [`package-readme.md`](docs/package-readme.md)) |
 
 ## The shape consumers compile against
 
@@ -120,27 +75,98 @@ exposes via the SP↔mesh protocol):
   `IHostBuilder`, lifetime, logging, tracing setup. The SDK plugs into
   whatever you have.
 
-## Versioning & releases
+## Load-bearing constraints
 
-Tag-driven: `v0.1.0` → publishes `0.1.0` to nuget.org and the private
-Azure DevOps feed. Pushes to `main` publish `0.0.0-ci.<run>` to the
-**private feed only** — never depend on those from shipped code.
-Versions on nuget.org are immutable.
+- **The package is public.** It ships to nuget.org for SP authors outside VION, so a pull request
+  that breaks a consumer says so in its description, and the release that ships it is a major.
+  [`docs/releasing.md`](docs/releasing.md) says what breaks one.
 
-Canonical reference: [`docs/releasing.md`](docs/releasing.md) +
-[`publish.yml`](.github/workflows/publish.yml).
+## Read before you write
 
-This SDK versions on its own surface — its public API plus the wire
-messages it produces and consumes. A
-[`Vion.Contracts`](https://github.com/vion-iot/vion-contracts) bump
-forces a matching SDK major only when it breaks one of those (a payload
-the SDK sends or receives, or a contracts type exposed in the SDK's
-public API). A contracts change the SDK doesn't surface — additive, or
-to a payload the SDK never touches — is an ordinary dependency bump,
-even across a contracts major.
+Read the linked doc before doing the matching work, and follow it.
 
-## Source availability
+| When you're… | Read |
+| --- | --- |
+| writing or changing C# code | [`docs/conventions/code-style.md`](docs/conventions/code-style.md) |
+| writing or changing a test | [`docs/conventions/testing.md`](docs/conventions/testing.md) |
+| writing or reworking a comment or XML documentation | [`docs/conventions/comment.md`](docs/conventions/comment.md) |
+| cutting a release | [`docs/releasing.md`](docs/releasing.md) |
 
-Apache-2.0; source-available. PRs from outside `vion-iot` are not
-accepted — see [`CONTRIBUTING.md`](CONTRIBUTING.md). The package is
-public on nuget.org so external SP authors can consume it.
+## Working agreement
+
+### Lanes
+
+At the start of a task, answer two questions out loud: is the change local? is a design point open?
+
+- **Fix-sized** — local, nothing open: branch, commit, review, pull request. No document. A change
+  that turns out not to be local stops and says so: it is feature-sized.
+- **Feature-sized** — a change doc first, in `docs/changes/`. Ratified before code when a question
+  in it is open. Archived in the pull request that lands it.
+
+### STOPs
+
+- A STOP is named up front — by the brief, an open question in the change doc, or the lane answer —
+  and no other. With none named, human review is on the pull request.
+- A STOP is a `partial` REPORT with a question in it.
+- A decision nobody named is surfaced, not taken. A hedge in a brief is a STOP when it fails.
+- Scope does not widen on its own: a design or naming question gets options and changes nothing
+  until the human chooses; work nobody asked for is proposed, not produced.
+- A question from the human is a question, not an instruction.
+- Anything committed after a `done` REPORT needs a new REPORT.
+- A request that breaks a convention of this repo is pushed back on before complying, by name.
+- Verification only a human can do is not a STOP: write it as "not run, routes to a human" under the
+  pull request's Verification.
+
+### Communication
+
+- Say what was run, not that it worked.
+- A claim a decision rests on names its evidence: a command, a file and line, or that it is inferred.
+- Promise no notification that cannot be subscribed to.
+
+### Never
+
+- Push to or commit on the default branch.
+- Force-push.
+- Delete a remote branch.
+- Merge a pull request.
+- Write to Jira without saying so first.
+- Paste a secret into chat.
+
+## Skills in this repo
+
+| moment | skill |
+|---|---|
+| starting work on a change | `/vion-git:branch` |
+| a unit of work lands — a task, a criterion, a fixed review finding | `/vion-git:commit` |
+| a correction to produced work, tooling that fought or false-passed, upstream that was wrong, a settled point, a grumble | `/vion-improve:journal` |
+| editing a file written for the agent — `CLAUDE.md`, a command, a skill, a convention doc, settings | `/vion-improve:harness` |
+| the branch is ready for a pull request | `/vion-git:pr` |
+| a retro is due, by the count and age `retro` states | `/vion-improve:retro` |
+
+### Pre-PR obligations
+
+1. On `*.cs`, `*.csproj`, `Directory.Build.*`, `.editorconfig`, `Vion.ServiceProvider.Sdk.sln.DotSettings`,
+   `.config/dotnet-tools.json`, `scripts/cleanup-code.ps1`: `pwsh scripts/cleanup-code.ps1`
+   (`/cleanup`); commit what it changes.
+2. On `*.cs`, `*.csproj`, `Directory.Build.*`, `.editorconfig`, `Vion.ServiceProvider.Sdk.sln`:
+   `dotnet build Vion.ServiceProvider.Sdk.sln`, then `dotnet test Vion.ServiceProvider.Sdk.sln`.
+
+### Reader depth
+
+Beyond `/vion-git:pr`'s defaults:
+
+- harness: `docs/conventions/**`
+
+### Parallel sessions
+
+The main checkout stays on `main`; a branch lives in `../service-provider-sdk-dotnet-<key>`
+(`/vion-git:branch`).
+
+A new worktree gets nothing copied into it, so it lacks the main checkout's ignored local state:
+`.idea/`, IDE state that build, test and cleanup do not read. No port is a singleton: build, test
+and cleanup write only inside the checkout they run in.
+
+## How this file stays true
+
+Harness budget, in bytes of the committed file: this file 10 kB. No gate reads this number —
+enforced by hand.
