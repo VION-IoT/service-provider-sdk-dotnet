@@ -5,9 +5,9 @@ This document defines the formatting and micro-level idioms every C# file in thi
 ## Formatting
 
 Formatting is whatever `cleanupcode` applies through `scripts/cleanup-code.ps1` (`/cleanup`), with the
-`Custom: Full Cleanup (excl. optimize usings)` profile in `Vion.ServiceProvider.Sdk.sln.DotSettings`. Never run
-cleanup with the `Built-in: Reformat Code` profile: it formats differently from the DotSettings profile.
-CI runs the same script with `-Verify`, which fails on any drift.
+`Custom: Full Cleanup (excl. optimize usings)` profile in `Vion.ServiceProvider.Sdk.sln.DotSettings`.
+Never run cleanup with the `Built-in: Reformat Code` profile: it formats differently from the
+DotSettings profile. CI runs the same script with `-Verify`, which fails on any drift.
 
 **Formatter escape hatch:** for the rare span where `cleanupcode` formats inconsistently across OSes
 (local vs the Linux CI runner) or where you intentionally hand-format (e.g. an aligned table), wrap
