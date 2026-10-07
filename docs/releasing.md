@@ -12,11 +12,20 @@ Git tags drive versions. There is no `<Version>` in `Vion.ServiceProvider.Sdk.cs
 | Push tag `v0.1.0` | `0.1.0` | Private feed + nuget.org |
 | Push tag `v0.2.0-preview.1` | `0.2.0-preview.1` | Private feed + nuget.org (treated as pre-release) |
 
+Versions follow SemVer, on this SDK's own surface: its public API plus the wire messages it produces and
+consumes. A change that breaks a consumer takes a major version. A
+[`Vion.Contracts`](https://github.com/vion-iot/vion-contracts) bump forces a matching SDK major only when
+it breaks one of those — a payload the SDK sends or receives, or a contracts type exposed in the SDK's
+public API. A contracts change the SDK doesn't surface — additive, or to a payload the SDK never touches —
+is an ordinary dependency bump, even across a contracts major.
+
 ## Cutting a release
 
 Prerequisites:
 - `main` is green on the commit you want to release.
 - `gh` is installed and authenticated (`gh auth status`).
+- The version is chosen from what merged since the last tag: a pull request whose description says it
+  breaks a consumer makes the release a major.
 
 ```bash
 # Stable:
@@ -29,7 +38,7 @@ gh release create v0.2.0-preview.1 --target main --prerelease --generate-notes \
   --title "v0.2.0-preview.1" --notes "What this preview validates."
 ```
 
-`gh release create` creates the git tag (at the `--target` commit) and the GitHub Release in one step. The new tag triggers [`publish.yml`](../.github/workflows/publish.yml):
+`gh release create` creates the git tag (at the `--target` commit) and the GitHub Release in one step; `--generate-notes` sections the notes by the merged pull requests' labels ([`.github/release.yml`](../.github/release.yml)). The new tag triggers [`publish.yml`](../.github/workflows/publish.yml):
 
 1. Builds and packs with `Version` taken from the tag (strips the `v` prefix).
 2. Pushes `.nupkg` + `.snupkg` to the private Azure DevOps feed.
