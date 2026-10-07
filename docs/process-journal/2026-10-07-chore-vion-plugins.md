@@ -1,0 +1,1 @@
+2026-10-07 · decision · journal-lint · journal-lint runs on ubuntu-latest, not vion-telemetry's self-hosted runner: vion-telemetry chose self-hosted because it is private and ubuntu-latest costs Actions minutes, while this repo is public, where hosted minutes are free and dale-sdk, also public, uses ubuntu-latest. (self)
