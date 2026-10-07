@@ -1,0 +1,13 @@
+# Sections for GitHub's generated release notes (`gh release create --generate-notes`).
+# A PR lands in the section of its label.
+changelog:
+  categories:
+    - title: Features
+      labels:
+        - feat
+    - title: Fixes
+      labels:
+        - fix
+    - title: Maintenance
+      labels:
+        - chore
