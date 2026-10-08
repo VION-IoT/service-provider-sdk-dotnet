@@ -51,6 +51,13 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         private static readonly TimeSpan RegistrationConnectRetryDelay = TimeSpan.FromSeconds(5);
 
+        // State and polled traffic is too frequent to trace: every message would be a span, and a trace backend would hold mostly state updates. A topic containing one of these
+        // gets no span on either side, while the commands that change the state (property set, the hardware set topics) stay traced.
+        private static readonly string[] UntracedTopics =
+        [
+            Topics.PropertyState, Topics.MeasuringPointState, Topics.ComponentHealth, Topics.DiState, Topics.DoState, Topics.AiState, Topics.AoState, Topics.ModbusGet,
+        ];
+
         private static readonly ObjectPool<MqttApplicationMessage> MessagePool = new(static () => new MqttApplicationMessage
                                                                                                   {
                                                                                                       CorrelationData = new byte[16],
@@ -504,7 +511,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
         {
             LogPublishingMessage(correlationId, message.Topic);
 
-            using var activity = MessageActivities.StartMessagePublishActivity(message.Topic);
+            using var activity = MessageActivities.StartMessagePublishActivity(message.Topic, UntracedTopics);
             if (Activity.Current?.Id is { } traceParent)
             {
                 message.UserProperties ??= [];
@@ -1128,10 +1135,11 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         #region callbacks
 
-        private async Task OnApplicationMessageReceivedAsync(MqttApplicationMessageReceivedEventArgs arg)
+        // Internal so a test can deliver a received message without a broker; the MQTT client raises it only on a live connection.
+        internal async Task OnApplicationMessageReceivedAsync(MqttApplicationMessageReceivedEventArgs arg)
         {
             var topic = arg.ApplicationMessage.Topic;
-            using var activity = MessageActivities.StartMessageConsumeActivity(topic, arg.ApplicationMessage.GetTraceParent());
+            using var activity = MessageActivities.StartMessageConsumeActivity(topic, arg.ApplicationMessage.GetTraceParent(), UntracedTopics);
             MessagingMetrics.RecordConsume(ConnectionName);
             Guid correlationId;
             try
@@ -1454,7 +1462,8 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
                 client.ApplicationMessageReceivedAsync += eventArgs =>
                                                           {
                                                               using var activity = MessageActivities.StartMessageConsumeActivity(eventArgs.ApplicationMessage.Topic,
-                                                                  eventArgs.ApplicationMessage.GetTraceParent());
+                                                                  eventArgs.ApplicationMessage.GetTraceParent(),
+                                                                  UntracedTopics);
 
                                                               if (_logger.IsEnabled(LogLevel.Debug))
                                                               {
