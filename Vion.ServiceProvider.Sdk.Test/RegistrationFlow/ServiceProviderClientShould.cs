@@ -55,6 +55,7 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
             Assert.IsEmpty(spans);
         }
 
+        [DataRow(Topics.PropertySet)]
         [DataRow(Topics.DoSet)]
         [DataRow(Topics.AoSet)]
         [DataRow(Topics.ModbusSet)]
@@ -101,6 +102,7 @@ namespace Vion.ServiceProvider.Sdk.Test.RegistrationFlow
             Assert.IsEmpty(spans);
         }
 
+        [DataRow(Topics.PropertySet)]
         [DataRow(Topics.DoSet)]
         [DataRow(Topics.AoSet)]
         [DataRow(Topics.ModbusSet)]
