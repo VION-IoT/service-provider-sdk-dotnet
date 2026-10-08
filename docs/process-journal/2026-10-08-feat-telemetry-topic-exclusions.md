@@ -1,0 +1,1 @@
+2026-10-08 · review · ServiceProviderClientShould · Made OnApplicationMessageReceivedAsync internal so tests could drive the consume span site, on the brief's permission and against testing.md §6, without pushing back; asked to never widen visibility for a test and to drop the consume tests instead.
