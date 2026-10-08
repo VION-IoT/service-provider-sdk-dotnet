@@ -1135,8 +1135,7 @@ namespace Vion.ServiceProvider.Sdk.RegistrationFlow
 
         #region callbacks
 
-        // Internal so a test can deliver a received message without a broker; the MQTT client raises it only on a live connection.
-        internal async Task OnApplicationMessageReceivedAsync(MqttApplicationMessageReceivedEventArgs arg)
+        private async Task OnApplicationMessageReceivedAsync(MqttApplicationMessageReceivedEventArgs arg)
         {
             var topic = arg.ApplicationMessage.Topic;
             using var activity = MessageActivities.StartMessageConsumeActivity(topic, arg.ApplicationMessage.GetTraceParent(), UntracedTopics);
